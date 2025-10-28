@@ -1,1 +1,0 @@
-# Agrisense-2.0

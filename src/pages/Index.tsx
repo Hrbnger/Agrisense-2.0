@@ -30,7 +30,7 @@ const Index = () => {
       <section className="gradient-hero py-20 px-4">
         <div className="container mx-auto text-center">
           <img 
-            src="/app-icon.jpg" 
+            src="/app-logo.jpg" 
             alt="AgriSense" 
             className="mx-auto w-20 h-20 rounded-full object-cover mb-6 animate-fade-in shadow-lg" 
           />
@@ -110,7 +110,7 @@ const Index = () => {
               <Card className="card-elevated">
                 <CardContent className="p-8">
                   <div className="aspect-square rounded-lg flex items-center justify-center overflow-hidden">
-                    <img src="/app-icon.jpg" alt="AgriSense" className="w-full h-full object-cover" />
+                    <img src="/app-logo.jpg" alt="AgriSense" className="w-full h-full object-cover" />
                   </div>
                 </CardContent>
               </Card>

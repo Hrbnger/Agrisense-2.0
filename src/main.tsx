@@ -18,7 +18,7 @@ import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <ThemeProvider defaultTheme="light" storageKey="agrisense-theme">
+    <ThemeProvider defaultTheme="system" storageKey="agrisense-theme" enableSystem attribute="class">
       <AuthProvider>
         <BrowserRouter>
           <Routes>

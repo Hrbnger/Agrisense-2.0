@@ -5,10 +5,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Moon, Sun, Bell, MapPin, Palette, FileText } from "lucide-react";
+import { ArrowLeft, Moon, Sun, Bell, MapPin, Palette, FileText, Monitor } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -17,8 +24,10 @@ const Settings = () => {
   const [pushNotifications, setPushNotifications] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     loadSettings();
   }, []);
 
@@ -245,22 +254,47 @@ const Settings = () => {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="theme-toggle" className="text-base">
+                  <Label htmlFor="theme-select" className="text-base">
                     Theme
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Toggle between light and dark mode
+                    Choose between system, light, or dark mode
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Sun className="h-4 w-4 text-muted-foreground" />
-                  <Switch
-                    id="theme-toggle"
-                    checked={theme === "dark"}
-                    onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
-                  />
-                  <Moon className="h-4 w-4 text-muted-foreground" />
-                </div>
+                <Select
+                  value={mounted ? (theme || "system") : "system"}
+                  onValueChange={(value) => {
+                    setTheme(value as "system" | "light" | "dark");
+                    toast({
+                      title: "Theme Updated",
+                      description: `Theme changed to ${value === "system" ? "system" : value === "dark" ? "dark" : "light"} mode`,
+                    });
+                  }}
+                >
+                  <SelectTrigger id="theme-select" className="w-[180px]">
+                    <SelectValue placeholder="Select theme" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="system">
+                      <span className="flex items-center gap-2">
+                        <Monitor className="h-4 w-4" />
+                        System
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="light">
+                      <span className="flex items-center gap-2">
+                        <Sun className="h-4 w-4" />
+                        Light
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="dark">
+                      <span className="flex items-center gap-2">
+                        <Moon className="h-4 w-4" />
+                        Dark
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>

@@ -162,7 +162,7 @@ const Dashboard = () => {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <img src="/app-logo.jpg" alt="AgriSense" className="w-12 h-12 rounded-full object-cover ring-2 ring-primary/20" />
+              <img src={`${import.meta.env.BASE_URL}app-logo.jpg`} alt="AgriSense" className="w-12 h-12 rounded-full object-cover ring-2 ring-primary/20" />
               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background"></div>
             </div>
             <div>

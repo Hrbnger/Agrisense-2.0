@@ -7,7 +7,7 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   // For GitHub Pages: if your repo is username.github.io/repo-name, set base to '/repo-name/'
   // For username.github.io (root), keep base as '/'
-  base: process.env.VITE_BASE_PATH || '/',
+  base: process.env.VITE_BASE_PATH || '/Agrisense-2.0/',
   server: {
     host: "::",
     port: 8080,

@@ -94,11 +94,18 @@ const Forum = () => {
     // Check which posts the user has liked
     let userLikes: string[] = [];
     if (user) {
-      const { data: likesData } = await supabase
-        .from("post_likes")
-        .select("post_id")
-        .eq("user_id", user.id);
-      userLikes = likesData?.map(like => like.post_id) || [];
+      // Try reading from post_likes if it exists; otherwise fallback (no per-user like state)
+      try {
+        const { data: likesData, error } = await supabase
+          .from("post_likes")
+          .select("post_id")
+          .eq("user_id", user.id);
+        if (!error) {
+          userLikes = likesData?.map(like => like.post_id) || [];
+        }
+      } catch (_) {
+        // Table might not exist; ignore
+      }
     }
 
     const postsWithProfiles = postsData.map(post => ({
@@ -126,40 +133,52 @@ const Forum = () => {
     const post = posts.find(p => p.id === postId);
     if (!post) return;
 
-    if (post.user_has_liked) {
-      // Unlike
-      const { error } = await supabase
-        .from("post_likes")
-        .delete()
-        .eq("post_id", postId)
-        .eq("user_id", user.id);
+    try {
+      if (post.user_has_liked) {
+        // Try unlike in post_likes; if fails, decrement likes_count directly
+        let failed = false;
+        try {
+          const { error } = await supabase
+            .from("post_likes")
+            .delete()
+            .eq("post_id", postId)
+            .eq("user_id", user.id);
+          if (error) failed = true;
+        } catch { failed = true; }
 
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to unlike post",
-          variant: "destructive",
-        });
-      }
-    } else {
-      // Like
-      const { error } = await supabase
-        .from("post_likes")
-        .insert({ post_id: postId, user_id: user.id });
+        if (failed) {
+          await supabase
+            .from("forum_posts")
+            .update({ likes_count: Math.max((post.likes_count || 0) - 1, 0) })
+            .eq("id", postId);
+        }
+      } else {
+        // Try like in post_likes; if fails, increment likes_count directly
+        let failed = false;
+        try {
+          const { error } = await supabase
+            .from("post_likes")
+            .insert({ post_id: postId, user_id: user.id });
+          if (error) failed = true;
+        } catch { failed = true; }
 
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to like post",
-          variant: "destructive",
-        });
+        if (failed) {
+          await supabase
+            .from("forum_posts")
+            .update({ likes_count: (post.likes_count || 0) + 1 })
+            .eq("id", postId);
+        }
       }
+      // refresh list
+      fetchPosts();
+    } catch (_) {
+      toast({ title: "Error", description: "Failed to update like", variant: "destructive" });
     }
   };
 
   const fetchComments = async (postId: string) => {
     const { data: commentsData, error } = await supabase
-      .from("forum_comments")
+      .from("comments")
       .select("*")
       .eq("post_id", postId)
       .order("created_at", { ascending: true });
@@ -222,7 +241,7 @@ const Forum = () => {
     }
 
     const { error } = await supabase
-      .from("forum_comments")
+      .from("comments")
       .insert({
         post_id: postId,
         user_id: user.id,

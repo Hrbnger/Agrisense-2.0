@@ -34,6 +34,21 @@
 
   <body>
     <div id="root"></div>
+    <script type="text/javascript">
+      // GitHub Pages SPA redirect handler
+      // Converts ?/path format back to normal path for React Router
+      (function() {
+        var redirect = sessionStorage.redirect;
+        delete sessionStorage.redirect;
+        if (redirect && redirect !== location.href) {
+          var basePath = '/Agrisense-2.0';
+          if (redirect.indexOf(basePath) === -1) {
+            redirect = basePath + redirect.replace(/^\//, '/');
+          }
+          history.replaceState(null, null, redirect);
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

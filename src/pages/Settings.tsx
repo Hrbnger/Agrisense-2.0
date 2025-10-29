@@ -239,6 +239,12 @@ const Settings = () => {
                   disabled={loading}
                 />
               </div>
+            {/* Android WebView hint */}
+            {typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent) && (
+              <p className="text-xs text-muted-foreground">
+                Tip: If location doesn’t appear, open the app’s permissions and allow Location.
+              </p>
+            )}
             </CardContent>
           </Card>
 

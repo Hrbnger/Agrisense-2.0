@@ -31,6 +31,20 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Create .env for Vite
+        run: |
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" >> .env
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
+          echo "VITE_OPENAI_API_KEY=${{ secrets.VITE_OPENAI_API_KEY }}" >> .env
+
+      - name: Debug env presence
+        run: |
+          echo "VITE_SUPABASE_URL starts with: ${VITE_SUPABASE_URL:0:25}"
+          echo "Anon key length: ${#VITE_SUPABASE_ANON_KEY}"
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
       - name: Build
         run: node node_modules/vite/bin/vite.js build
         shell: bash

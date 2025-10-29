@@ -18,9 +18,12 @@ const Auth = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Check if user is already logged in
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) navigate("/dashboard");
+      if (session) {
+        navigate("/dashboard");
+      }
     };
     checkUser();
   }, [navigate]);
@@ -34,8 +37,10 @@ const Auth = () => {
         email,
         password,
         options: {
-          data: { full_name: fullName },
-          emailRedirectTo: `${window.location.origin}/Agrisense-2.0/dashboard`,
+          data: {
+            full_name: fullName,
+          },
+          emailRedirectTo: `${window.location.origin}/dashboard`,
         },
       });
 
@@ -43,7 +48,7 @@ const Auth = () => {
 
       toast({
         title: "Account created!",
-        description: "Check your email to confirm your address before signing in.",
+        description: "You can now sign in with your credentials.",
       });
     } catch (error: any) {
       toast({
@@ -61,8 +66,13 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
       if (error) throw error;
+
       navigate("/dashboard");
     } catch (error: any) {
       toast({
@@ -75,15 +85,15 @@ const Auth = () => {
     }
   };
 
-  // Updated Google Auth
   const handleGoogleSignIn = async () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: "https://hrbnger.github.io/Agrisense-2.0/dashboard", 
+          redirectTo: 'https://hrbnger.github.io/Agrisense-2.0/dashboard',
         },
       });
+
       if (error) throw error;
     } catch (error: any) {
       toast({
@@ -106,7 +116,6 @@ const Auth = () => {
             Your smart farming companion for plant identification and disease detection
           </CardDescription>
         </CardHeader>
-
         <CardContent>
           <Tabs defaultValue="signin" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
@@ -114,7 +123,6 @@ const Auth = () => {
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
 
-            {/* Sign In Form */}
             <TabsContent value="signin">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
@@ -145,7 +153,6 @@ const Auth = () => {
               </form>
             </TabsContent>
 
-            {/* Sign Up Form */}
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
@@ -189,7 +196,6 @@ const Auth = () => {
             </TabsContent>
           </Tabs>
 
-          {/* Google Auth */}
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
@@ -214,4 +220,21 @@ const Auth = () => {
                   fill="#34A853"
                 />
                 <path
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.1
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                  fill="#FBBC05"
+                />
+                <path
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  fill="#EA4335"
+                />
+              </svg>
+              Sign in with Google
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default Auth;

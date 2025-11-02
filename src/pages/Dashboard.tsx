@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Camera, Leaf, MessageSquare, CloudSun, User, LogOut, Settings, Menu, AlertCircle, Clock, Sparkles, TrendingUp } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 
@@ -247,17 +248,46 @@ const Dashboard = () => {
               <p className="text-xs text-muted-foreground">Smart Farming Platform</p>
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="hover:bg-muted">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => navigate("/profile")}>
-                <User className="mr-2 h-4 w-4" />
-                Profile
-              </DropdownMenuItem>
+          <div className="flex items-center gap-4">
+            {/* User Avatar and Name */}
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10 border-2 border-primary/20">
+                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarFallback className="bg-gradient-to-br from-primary to-green-600 text-white font-semibold">
+                  {(() => {
+                    if (profile?.full_name) return profile.full_name.charAt(0).toUpperCase();
+                    const userMetadata = session?.user?.user_metadata || {};
+                    if (userMetadata.full_name || userMetadata.name) {
+                      return (userMetadata.full_name || userMetadata.name).charAt(0).toUpperCase();
+                    }
+                    if (session?.user?.email) {
+                      return session.user.email.charAt(0).toUpperCase();
+                    }
+                    return "U";
+                  })()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="hidden md:block">
+                <p className="text-sm font-medium">
+                  {profile?.full_name || 
+                   session?.user?.user_metadata?.full_name || 
+                   session?.user?.user_metadata?.name ||
+                   (session?.user?.email ? session.user.email.split('@')[0].charAt(0).toUpperCase() + session.user.email.split('@')[0].slice(1) : "User")}
+                </p>
+              </div>
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="hover:bg-muted">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => navigate("/profile")}>
+                  <User className="mr-2 h-4 w-4" />
+                  Profile
+                </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate("/settings")}>
                 <Settings className="mr-2 h-4 w-4" />
                 Settings

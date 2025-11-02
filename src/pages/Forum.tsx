@@ -19,6 +19,7 @@ interface ForumPost {
   comments_count: number;
   profiles: {
     full_name: string;
+    avatar_url: string | null;
   } | null;
   user_has_liked?: boolean;
 }
@@ -30,6 +31,7 @@ interface Comment {
   user_id: string;
   profiles: {
     full_name: string;
+    avatar_url: string | null;
   } | null;
 }
 
@@ -43,6 +45,7 @@ const Forum = () => {
   const [comments, setComments] = useState<{ [key: string]: Comment[] }>({});
   const [newComment, setNewComment] = useState<{ [key: string]: string }>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState<{ full_name: string; avatar_url: string | null } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -62,9 +65,52 @@ const Forum = () => {
     };
   }, []);
 
+  // Subscribe to current user profile updates
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel(`profile:${currentUserId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `user_id=eq.${currentUserId}`,
+        },
+        (payload) => {
+          setCurrentUserProfile({
+            full_name: payload.new.full_name,
+            avatar_url: payload.new.avatar_url,
+          });
+          // Also refetch posts to update displayed names/avatars
+          fetchPosts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId]);
+
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     setCurrentUserId(user?.id || null);
+    
+    // Fetch current user's profile
+    if (user) {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("full_name, avatar_url")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      
+      if (profileData) {
+        setCurrentUserProfile(profileData);
+      }
+    }
   };
 
   const fetchPosts = async () => {
@@ -88,7 +134,7 @@ const Forum = () => {
     const userIds = [...new Set(postsData.map(post => post.user_id))];
     const { data: profilesData } = await supabase
       .from("profiles")
-      .select("user_id, full_name")
+      .select("user_id, full_name, avatar_url")
       .in("user_id", userIds);
 
     // Check which posts the user has liked
@@ -195,7 +241,7 @@ const Forum = () => {
     const userIds = [...new Set(commentsData.map(comment => comment.user_id))];
     const { data: profilesData } = await supabase
       .from("profiles")
-      .select("user_id, full_name")
+      .select("user_id, full_name, avatar_url")
       .in("user_id", userIds);
 
     const commentsWithProfiles = commentsData.map(comment => ({
@@ -389,7 +435,7 @@ const Forum = () => {
                 <CardHeader>
                   <div className="flex items-start gap-4">
                     <Avatar className="h-12 w-12 border-2 border-primary/20">
-                      <AvatarImage src={undefined} />
+                      <AvatarImage src={post.profiles?.avatar_url || undefined} />
                       <AvatarFallback className="bg-gradient-to-br from-primary to-green-600 text-white font-semibold">
                         {(post.profiles?.full_name || "A").charAt(0).toUpperCase()}
                       </AvatarFallback>
@@ -455,7 +501,7 @@ const Forum = () => {
                       {comments[post.id]?.map((comment) => (
                         <div key={comment.id} className="flex gap-3 group">
                           <Avatar className="h-8 w-8 mt-1 border border-border">
-                            <AvatarImage src={undefined} />
+                            <AvatarImage src={comment.profiles?.avatar_url || undefined} />
                             <AvatarFallback className="bg-gradient-to-br from-primary/20 to-green-500/20 text-xs font-medium">
                               {(comment.profiles?.full_name || "A").charAt(0).toUpperCase()}
                             </AvatarFallback>
@@ -480,9 +526,9 @@ const Forum = () => {
                       {currentUserId && (
                         <div className="flex gap-2 pt-2">
                           <Avatar className="h-10 w-10 border border-border">
-                            <AvatarImage src={undefined} />
+                            <AvatarImage src={currentUserProfile?.avatar_url || undefined} />
                             <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
-                              {currentUserId?.charAt(0).toUpperCase()}
+                              {(currentUserProfile?.full_name || currentUserId || "U").charAt(0).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 flex gap-2">

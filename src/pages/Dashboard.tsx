@@ -1,3 +1,14 @@
+/**
+ * Dashboard Component - Main user dashboard after login
+ * 
+ * Features:
+ * - Displays personalized welcome message with user's name
+ * - Shows user avatar and profile info in header
+ * - Quick action cards for main features
+ * - Recent activity feed (plant identifications & disease diagnoses)
+ * - Real-time profile updates via Supabase subscriptions
+ * - Auto-refresh when navigating back from profile page
+ */
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +22,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 
+/**
+ * ActivityItem interface - Represents a recent user activity
+ * Can be either a plant identification or disease diagnosis
+ */
 interface ActivityItem {
   id: string;
   type: 'plant' | 'disease';
@@ -22,43 +37,70 @@ interface ActivityItem {
 }
 
 const Dashboard = () => {
+  // Authentication state - current user session
   const [session, setSession] = useState<Session | null>(null);
+  // User profile data (name, avatar, etc.) from profiles table
   const [profile, setProfile] = useState<any>(null);
+  // Recent activities (plant IDs and disease diagnoses) for the user
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  // Loading state for activity fetch operation
   const [loadingActivity, setLoadingActivity] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
+  const location = useLocation(); // Used to detect route changes
   const { toast } = useToast();
 
+  /**
+   * Effect: Initialize authentication check and data loading
+   * 
+   * Runs once on component mount to:
+   * 1. Get current session (check if user is logged in)
+   * 2. If logged in: fetch user profile and recent activities
+   * 3. Set up listener for auth state changes (logout, token refresh, etc.)
+   * 4. Redirect to auth page if not logged in
+   */
   useEffect(() => {
+    // Get current session synchronously
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (!session) {
+        // No session = not logged in, redirect to auth page
         navigate("/auth");
       } else {
+        // User is logged in, fetch their data
         fetchProfile(session.user.id, session);
         fetchRecentActivity(session.user.id);
       }
     });
 
+    // Listen for authentication state changes
+    // This catches: logout, token refresh, session expiry, etc.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (!session) {
         navigate("/auth");
       } else {
+        // Session exists, refresh user data
         fetchProfile(session.user.id, session);
         fetchRecentActivity(session.user.id);
       }
     });
 
+    // Cleanup: unsubscribe when component unmounts
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  // Refetch profile when navigating back to dashboard (e.g., from profile page)
+  /**
+   * Effect: Refetch profile when navigating back to dashboard
+   * 
+   * This ensures profile updates (like name/avatar changes) are visible
+   * when user navigates back from the profile page.
+   * 
+   * Uses a small delay (100ms) to allow database commits to propagate.
+   */
   useEffect(() => {
     if (location.pathname === "/dashboard" && session?.user) {
       // Always refetch when navigating to dashboard
-      // Add a small delay to ensure profile update has been committed
+      // Add a small delay to ensure profile update has been committed to DB
       const timer = setTimeout(() => {
         fetchProfile(session.user.id, session);
       }, 100);
@@ -66,7 +108,12 @@ const Dashboard = () => {
     }
   }, [location.pathname, session?.user?.id]);
 
-  // Also refetch on window focus
+  /**
+   * Effect: Refetch profile when window regains focus
+   * 
+   * If user updates profile in another tab/window, this will refresh
+   * the data when they return to this tab.
+   */
   useEffect(() => {
     const handleFocus = () => {
       if (location.pathname === "/dashboard" && session?.user) {
@@ -80,25 +127,40 @@ const Dashboard = () => {
     };
   }, [location.pathname, session?.user?.id]);
 
+  /**
+   * Fetch user profile from database
+   * 
+   * If profile doesn't exist (e.g., OAuth user who hasn't set up profile yet),
+   * automatically creates one using data from user metadata or email.
+   * 
+   * @param userId - The user's UUID from Supabase Auth
+   * @param currentSession - Optional session object (uses state session if not provided)
+   */
   const fetchProfile = async (userId: string, currentSession: Session | null = null) => {
     const sessionToUse = currentSession || session;
+    
+    // Try to fetch existing profile
     const { data } = await supabase
       .from("profiles")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
     
-    // If profile doesn't exist, try to create one from user metadata
+    // If profile doesn't exist, create one automatically
+    // This happens for OAuth users who haven't visited the profile page yet
     if (!data && sessionToUse?.user) {
       const userMetadata = sessionToUse.user.user_metadata || {};
       const email = sessionToUse.user.email || '';
       
-      // Extract name from metadata or email
+      // Extract name with fallback chain:
+      // 1. Try user metadata (from OAuth or signup)
+      // 2. Extract from email (part before @)
+      // 3. Default to "User"
       const fullName = userMetadata.full_name || 
                        userMetadata.name || 
                        (email ? email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1) : 'User');
       
-      // Create profile
+      // Create profile record in database
       const { data: newProfile } = await supabase
         .from("profiles")
         .insert({
@@ -113,30 +175,41 @@ const Dashboard = () => {
         setProfile(newProfile);
       }
     } else {
+      // Profile exists, use it
       setProfile(data);
     }
   };
 
-  // Set up realtime subscription to listen for profile changes
+  /**
+   * Effect: Set up realtime subscription for profile updates
+   * 
+   * Listens for changes to the user's profile in the database.
+   * When profile is updated (e.g., name/avatar changed), automatically
+   * updates the UI without requiring a page refresh.
+   * 
+   * Requires Supabase Realtime to be enabled in your project settings.
+   */
   useEffect(() => {
     if (!session?.user) return;
 
+    // Create a channel specific to this user's profile
     const channel = supabase
       .channel(`profile:${session.user.id}`)
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: 'UPDATE', // Only listen for updates, not inserts/deletes
           schema: 'public',
           table: 'profiles',
-          filter: `user_id=eq.${session.user.id}`,
+          filter: `user_id=eq.${session.user.id}`, // Only this user's profile
         },
         async (payload) => {
-          // Update profile when it's changed
+          // Profile was updated, update local state
           console.log('Profile updated via realtime:', payload.new);
           setProfile(payload.new);
           
-          // Also refetch to ensure we have the latest data
+          // Also refetch to ensure we have the complete latest data
+          // (realtime might not include all fields)
           if (session?.user) {
             await fetchProfile(session.user.id, session);
           }
@@ -144,15 +217,24 @@ const Dashboard = () => {
       )
       .subscribe();
 
+    // Cleanup: remove subscription when component unmounts or user changes
     return () => {
       supabase.removeChannel(channel);
     };
   }, [session?.user?.id]);
 
+  /**
+   * Fetch recent user activities (plant identifications and disease diagnoses)
+   * 
+   * Combines data from both 'plants' and 'diseases' tables, sorts by date,
+   * and displays the 10 most recent activities.
+   * 
+   * @param userId - The user's UUID to fetch activities for
+   */
   const fetchRecentActivity = async (userId: string) => {
     setLoadingActivity(true);
     try {
-      // Fetch recent plants
+      // Fetch recent plant identifications (last 5)
       const { data: plantsData } = await supabase
         .from("plants")
         .select("id, plant_name, confidence, image_url, created_at")
@@ -160,7 +242,7 @@ const Dashboard = () => {
         .order("created_at", { ascending: false })
         .limit(5);
 
-      // Fetch recent diseases
+      // Fetch recent disease diagnoses (last 5)
       const { data: diseasesData } = await supabase
         .from("diseases")
         .select("id, disease_name, confidence, image_url, created_at, treatment")
@@ -168,7 +250,8 @@ const Dashboard = () => {
         .order("created_at", { ascending: false })
         .limit(5);
 
-      // Combine and sort by date
+      // Combine both types into a unified activity list
+      // Map plant data to ActivityItem format
       const activities: ActivityItem[] = [
         ...(plantsData || []).map(p => ({
           id: p.id,
@@ -178,6 +261,7 @@ const Dashboard = () => {
           created_at: p.created_at,
           image_url: p.image_url,
         })),
+        // Map disease data to ActivityItem format
         ...(diseasesData || []).map(d => ({
           id: d.id,
           type: 'disease' as const,
@@ -186,9 +270,13 @@ const Dashboard = () => {
           created_at: d.created_at,
           image_url: d.image_url,
         })),
-      ].sort((a, b) => 
+      ]
+      // Sort by date (most recent first)
+      .sort((a, b) => 
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      ).slice(0, 10); // Show top 10 most recent
+      )
+      // Show top 10 most recent across both types
+      .slice(0, 10);
 
       setRecentActivity(activities);
     } catch (error) {

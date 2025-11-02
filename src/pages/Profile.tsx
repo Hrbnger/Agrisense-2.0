@@ -1,3 +1,13 @@
+/**
+ * Profile Component - User profile management page
+ * 
+ * Features:
+ * - Edit user profile information (name, bio, location, phone)
+ * - Upload and manage profile avatar/image
+ * - Validates file types and sizes for avatar uploads
+ * - Supports both Supabase Storage and base64 fallback for avatars
+ * - Auto-navigates to dashboard after successful update
+ */
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,36 +20,51 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Upload, User, X } from "lucide-react";
 
 const Profile = () => {
+  // Profile data from database
   const [profile, setProfile] = useState<any>(null);
+  // Form field states
   const [fullName, setFullName] = useState("");
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [loading, setLoading] = useState(false);
+  // Avatar management states
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null); // Current avatar URL
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null); // Preview of newly selected image
+  const [uploadingAvatar, setUploadingAvatar] = useState(false); // Upload in progress
+  const [loading, setLoading] = useState(false); // Form submission in progress
+  // Reference to hidden file input for avatar selection
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  /**
+   * Effect: Load user profile on component mount
+   * Fetches current user's profile data and populates the form fields
+   */
   useEffect(() => {
     fetchProfile();
   }, []);
 
+  /**
+   * Fetch current user's profile from database
+   * Redirects to auth page if user is not logged in
+   */
   const fetchProfile = async () => {
+    // Get current authenticated user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       navigate("/auth");
       return;
     }
 
+    // Fetch profile data from profiles table
     const { data } = await supabase
       .from("profiles")
       .select("*")
       .eq("user_id", user.id)
       .maybeSingle();
 
+    // Populate form fields with existing profile data
     if (data) {
       setProfile(data);
       setFullName(data.full_name || "");
@@ -50,11 +75,19 @@ const Profile = () => {
     }
   };
 
+  /**
+   * Handle avatar image file selection
+   * 
+   * Validates the selected file (type and size) and creates a preview
+   * using FileReader to convert image to base64 data URL.
+   * 
+   * @param e - File input change event
+   */
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
+    // Validate file type - must be an image
     if (!file.type.startsWith('image/')) {
       toast({
         title: "Invalid file type",
@@ -64,7 +97,7 @@ const Profile = () => {
       return;
     }
 
-    // Validate file size (max 5MB)
+    // Validate file size - maximum 5MB to prevent large uploads
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: "File too large",
@@ -74,7 +107,8 @@ const Profile = () => {
       return;
     }
 
-    // Show preview
+    // Convert file to base64 data URL for preview
+    // This allows displaying the image before uploading
     const reader = new FileReader();
     reader.onloadend = () => {
       setAvatarPreview(reader.result as string);
@@ -82,6 +116,19 @@ const Profile = () => {
     reader.readAsDataURL(file);
   };
 
+  /**
+   * Handle avatar image upload
+   * 
+   * Tries to upload to Supabase Storage first. If storage bucket doesn't exist
+   * or upload fails, falls back to storing base64 data URL directly in database.
+   * 
+   * Steps:
+   * 1. Convert preview (base64) to blob
+   * 2. Upload blob to Supabase Storage (avatars bucket)
+   * 3. Get public URL from storage
+   * 4. Update profile with avatar URL
+   * 5. Fallback to base64 if storage fails
+   */
   const handleAvatarUpload = async () => {
     if (!avatarPreview) return;
 
@@ -91,24 +138,28 @@ const Profile = () => {
     setUploadingAvatar(true);
 
     try {
-      // Convert base64 to blob
+      // Convert base64 preview to blob for upload
       const response = await fetch(avatarPreview);
       const blob = await response.blob();
+      // Extract file extension from MIME type (e.g., 'png' from 'image/png')
       const fileExt = blob.type.split('/')[1];
+      // Create unique filename: user-id-timestamp.extension
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
-      // Upload to Supabase Storage
+      // Try uploading to Supabase Storage first (preferred method)
       const { error: uploadError } = await supabase.storage
-        .from('avatars')
+        .from('avatars') // Storage bucket name
         .upload(filePath, blob, {
-          cacheControl: '3600',
-          upsert: false
+          cacheControl: '3600', // Cache for 1 hour
+          upsert: false // Don't overwrite existing files
         });
 
+      // If storage bucket doesn't exist or upload fails, use base64 fallback
       if (uploadError) {
-        // If storage bucket doesn't exist, fall back to base64
         console.warn('Storage upload failed, using base64:', uploadError);
+        // Store base64 data URL directly in database
+        // This works even if Supabase Storage isn't configured
         const { error: updateError } = await supabase
           .from("profiles")
           .update({ avatar_url: avatarPreview })
@@ -126,12 +177,12 @@ const Profile = () => {
         return;
       }
 
-      // Get public URL
+      // Storage upload succeeded, get the public URL
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
 
-      // Update profile with avatar URL
+      // Update profile record with the storage URL
       const { error: updateError } = await supabase
         .from("profiles")
         .update({ avatar_url: publicUrl })
@@ -139,6 +190,7 @@ const Profile = () => {
 
       if (updateError) throw updateError;
 
+      // Update local state and clear preview
       setAvatarUrl(publicUrl);
       setAvatarPreview(null);
       toast({
@@ -154,6 +206,7 @@ const Profile = () => {
       });
     } finally {
       setUploadingAvatar(false);
+      // Clear file input so same file can be selected again
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -167,6 +220,13 @@ const Profile = () => {
     }
   };
 
+  /**
+   * Handle profile form submission
+   * 
+   * Updates user profile in database with form field values.
+   * After successful update, refetches profile and navigates to dashboard
+   * so user can see their updated name/avatar immediately.
+   */
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -174,6 +234,7 @@ const Profile = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Update profile record with all form fields
     const { error } = await supabase
       .from("profiles")
       .update({
@@ -181,11 +242,12 @@ const Profile = () => {
         bio,
         location,
         phone,
-        avatar_url: avatarUrl,
+        avatar_url: avatarUrl, // May have been updated via handleAvatarUpload
       })
       .eq("user_id", user.id);
 
     if (error) {
+      // Show error message if update fails
       toast({
         title: "Error",
         description: error.message,
@@ -193,15 +255,16 @@ const Profile = () => {
       });
       setLoading(false);
     } else {
-      // Refetch profile to ensure we have the latest data
+      // Success: refetch profile to ensure we have latest data
       await fetchProfile();
       
       toast({
         title: "Success",
         description: "Profile updated successfully",
       });
-      // Navigate back to dashboard to see the updated name
-      // Increased delay to ensure database update propagates
+      
+      // Navigate back to dashboard after delay
+      // Delay ensures database update has propagated before dashboard refetches
       setTimeout(() => {
         navigate("/dashboard");
       }, 800);

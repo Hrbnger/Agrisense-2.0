@@ -1,3 +1,17 @@
+/**
+ * Auth Component - Handles user authentication (Sign In, Sign Up, Google OAuth)
+ * 
+ * This component provides three authentication methods:
+ * 1. Email/Password sign up
+ * 2. Email/Password sign in
+ * 3. Google OAuth sign in
+ * 
+ * Features:
+ * - Automatic redirect to dashboard if already logged in
+ * - Handles OAuth callback from Google
+ * - Validates user input
+ * - Shows loading states during authentication
+ */
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,15 +24,24 @@ import { useToast } from "@/hooks/use-toast";
 import { Leaf, Loader2 } from "lucide-react";
 
 const Auth = () => {
+  // Form state management
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [fullName, setFullName] = useState(""); // Only used for sign up
+  const [loading, setLoading] = useState(false); // Loading state to disable buttons during API calls
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  /**
+   * Effect: Check authentication status and handle OAuth callbacks
+   * 
+   * This runs on component mount to:
+   * 1. Check if user is already logged in (redirects to dashboard if yes)
+   * 2. Handle OAuth callback from Google (when user returns from OAuth flow)
+   * 3. Listen for auth state changes (catches OAuth success events)
+   */
   useEffect(() => {
-    // Handle OAuth callback
+    // Handle OAuth callback - checks if we're returning from Google OAuth
     const handleOAuthCallback = async () => {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (session && !error) {
@@ -30,6 +53,8 @@ const Auth = () => {
     handleOAuthCallback();
 
     // Listen for auth state changes (including OAuth callbacks)
+    // This subscription catches when authentication state changes,
+    // such as when OAuth callback completes successfully
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -38,34 +63,46 @@ const Auth = () => {
       }
     });
 
+    // Cleanup: unsubscribe from auth state changes when component unmounts
     return () => {
       subscription.unsubscribe();
     };
   }, [navigate]);
 
+  /**
+   * Handle user sign up with email and password
+   * 
+   * Creates a new user account in Supabase Auth and stores the full name
+   * in user metadata. The user will receive an email confirmation link.
+   */
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // Create new user account with Supabase Auth
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          // Store full name in user metadata (accessible via user.user_metadata)
           data: {
             full_name: fullName,
           },
+          // Where to redirect user after email confirmation
           emailRedirectTo: `${window.location.origin}/dashboard`,
         },
       });
 
       if (error) throw error;
 
+      // Show success message (user needs to confirm email)
       toast({
         title: "Account created!",
         description: "You can now sign in with your credentials.",
       });
     } catch (error: any) {
+      // Show error message if sign up fails
       toast({
         title: "Sign up failed",
         description: error.message,
@@ -76,11 +113,18 @@ const Auth = () => {
     }
   };
 
+  /**
+   * Handle user sign in with email and password
+   * 
+   * Authenticates existing user and redirects to dashboard on success.
+   * The auth state change listener will also catch this and redirect.
+   */
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // Authenticate user with Supabase
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -88,8 +132,11 @@ const Auth = () => {
 
       if (error) throw error;
 
+      // Redirect to dashboard on successful login
+      // The useEffect auth state listener will also catch this
       navigate("/dashboard");
     } catch (error: any) {
+      // Show error message if authentication fails
       toast({
         title: "Sign in failed",
         description: error.message,
@@ -100,21 +147,38 @@ const Auth = () => {
     }
   };
 
+  /**
+   * Handle Google OAuth sign in
+   * 
+   * Initiates Google OAuth flow. User will be redirected to Google's
+   * authentication page, then back to our app with an auth token.
+   * 
+   * The redirect URL is dynamically constructed to work in both:
+   * - Local development (http://localhost:8080)
+   * - Production (https://hrbnger.github.io/Agrisense-2.0)
+   */
   const handleGoogleSignIn = async () => {
     try {
+      // Get the base URL path (e.g., '/Agrisense-2.0/' for GitHub Pages)
       const baseUrl = import.meta.env.BASE_URL || '/';
+      // Construct the redirect path, handling trailing slashes
       const redirectPath = baseUrl.endsWith('/') 
         ? `${baseUrl}dashboard` 
         : `${baseUrl}/dashboard`;
       
+      // Initiate OAuth flow with Google
+      // User will be redirected to Google, then back to our redirect URL
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
+          // Dynamic redirect URL that works in all environments
           redirectTo: `${window.location.origin}${redirectPath}`,
         },
       });
 
       if (error) throw error;
+      // Note: User will be redirected away from this page to Google
+      // The useEffect will handle the callback when they return
     } catch (error: any) {
       toast({
         title: "Google sign in failed",

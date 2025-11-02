@@ -18,14 +18,29 @@ const Auth = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if user is already logged in
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
+    // Handle OAuth callback
+    const handleOAuthCallback = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (session && !error) {
         navigate("/dashboard");
       }
     };
-    checkUser();
+
+    // Check if user is already logged in or handle OAuth callback
+    handleOAuthCallback();
+
+    // Listen for auth state changes (including OAuth callbacks)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        navigate("/dashboard");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -87,10 +102,15 @@ const Auth = () => {
 
   const handleGoogleSignIn = async () => {
     try {
+      const baseUrl = import.meta.env.BASE_URL || '/';
+      const redirectPath = baseUrl.endsWith('/') 
+        ? `${baseUrl}dashboard` 
+        : `${baseUrl}/dashboard`;
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: 'https://hrbnger.github.io/Agrisense-2.0/dashboard',
+          redirectTo: `${window.location.origin}${redirectPath}`,
         },
       });
 

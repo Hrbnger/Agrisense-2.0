@@ -34,7 +34,7 @@ const Dashboard = () => {
       if (!session) {
         navigate("/auth");
       } else {
-        fetchProfile(session.user.id);
+        fetchProfile(session.user.id, session);
         fetchRecentActivity(session.user.id);
       }
     });
@@ -44,7 +44,7 @@ const Dashboard = () => {
       if (!session) {
         navigate("/auth");
       } else {
-        fetchProfile(session.user.id);
+        fetchProfile(session.user.id, session);
         fetchRecentActivity(session.user.id);
       }
     });
@@ -52,14 +52,41 @@ const Dashboard = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, currentSession: Session | null = null) => {
+    const sessionToUse = currentSession || session;
     const { data } = await supabase
       .from("profiles")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
     
-    setProfile(data);
+    // If profile doesn't exist, try to create one from user metadata
+    if (!data && sessionToUse?.user) {
+      const userMetadata = sessionToUse.user.user_metadata || {};
+      const email = sessionToUse.user.email || '';
+      
+      // Extract name from metadata or email
+      const fullName = userMetadata.full_name || 
+                       userMetadata.name || 
+                       (email ? email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1) : 'User');
+      
+      // Create profile
+      const { data: newProfile } = await supabase
+        .from("profiles")
+        .insert({
+          user_id: userId,
+          full_name: fullName,
+          email: email,
+        })
+        .select()
+        .single();
+      
+      if (newProfile) {
+        setProfile(newProfile);
+      }
+    } else {
+      setProfile(data);
+    }
   };
 
   const fetchRecentActivity = async (userId: string) => {
@@ -206,7 +233,24 @@ const Dashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-4xl md:text-5xl font-bold mb-3">
-                  Welcome back, {profile?.full_name || "Farmer"}! 👋
+                  Welcome back, {(() => {
+                    // Try profile first
+                    if (profile?.full_name) return profile.full_name;
+                    
+                    // Try user metadata from session (for OAuth users)
+                    const userMetadata = session?.user?.user_metadata || {};
+                    if (userMetadata.full_name) return userMetadata.full_name;
+                    if (userMetadata.name) return userMetadata.name;
+                    
+                    // Extract name from email
+                    if (session?.user?.email) {
+                      const emailName = session.user.email.split('@')[0];
+                      return emailName.charAt(0).toUpperCase() + emailName.slice(1);
+                    }
+                    
+                    // Final fallback
+                    return "User";
+                  })()}! 👋
                 </h2>
                 <p className="text-lg opacity-90 mb-4">
                   Ready to make your farming smarter today?

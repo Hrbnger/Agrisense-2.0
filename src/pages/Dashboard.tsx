@@ -56,20 +56,25 @@ const Dashboard = () => {
 
   // Refetch profile when navigating back to dashboard (e.g., from profile page)
   useEffect(() => {
+    if (location.pathname === "/dashboard" && session?.user) {
+      // Always refetch when navigating to dashboard
+      // Add a small delay to ensure profile update has been committed
+      const timer = setTimeout(() => {
+        fetchProfile(session.user.id, session);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [location.pathname, session?.user?.id]);
+
+  // Also refetch on window focus
+  useEffect(() => {
     const handleFocus = () => {
       if (location.pathname === "/dashboard" && session?.user) {
         fetchProfile(session.user.id, session);
       }
     };
 
-    // Refetch when window regains focus (user comes back to tab)
     window.addEventListener('focus', handleFocus);
-    
-    // Refetch when navigating to dashboard
-    if (location.pathname === "/dashboard" && session?.user) {
-      fetchProfile(session.user.id, session);
-    }
-
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
@@ -126,9 +131,15 @@ const Dashboard = () => {
           table: 'profiles',
           filter: `user_id=eq.${session.user.id}`,
         },
-        (payload) => {
+        async (payload) => {
           // Update profile when it's changed
+          console.log('Profile updated via realtime:', payload.new);
           setProfile(payload.new);
+          
+          // Also refetch to ensure we have the latest data
+          if (session?.user) {
+            await fetchProfile(session.user.id, session);
+          }
         }
       )
       .subscribe();

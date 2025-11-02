@@ -193,15 +193,20 @@ const Profile = () => {
       });
       setLoading(false);
     } else {
+      // Refetch profile to ensure we have the latest data
+      await fetchProfile();
+      
       toast({
         title: "Success",
         description: "Profile updated successfully",
       });
       // Navigate back to dashboard to see the updated name
+      // Increased delay to ensure database update propagates
       setTimeout(() => {
         navigate("/dashboard");
-      }, 500);
+      }, 800);
     }
+    setLoading(false);
   };
 
   return (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ const Dashboard = () => {
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [loadingActivity, setLoadingActivity] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -51,6 +52,27 @@ const Dashboard = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  // Refetch profile when navigating back to dashboard (e.g., from profile page)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (location.pathname === "/dashboard" && session?.user) {
+        fetchProfile(session.user.id, session);
+      }
+    };
+
+    // Refetch when window regains focus (user comes back to tab)
+    window.addEventListener('focus', handleFocus);
+    
+    // Refetch when navigating to dashboard
+    if (location.pathname === "/dashboard" && session?.user) {
+      fetchProfile(session.user.id, session);
+    }
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [location.pathname, session?.user?.id]);
 
   const fetchProfile = async (userId: string, currentSession: Session | null = null) => {
     const sessionToUse = currentSession || session;
@@ -88,6 +110,32 @@ const Dashboard = () => {
       setProfile(data);
     }
   };
+
+  // Set up realtime subscription to listen for profile changes
+  useEffect(() => {
+    if (!session?.user) return;
+
+    const channel = supabase
+      .channel(`profile:${session.user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `user_id=eq.${session.user.id}`,
+        },
+        (payload) => {
+          // Update profile when it's changed
+          setProfile(payload.new);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id]);
 
   const fetchRecentActivity = async (userId: string) => {
     setLoadingActivity(true);

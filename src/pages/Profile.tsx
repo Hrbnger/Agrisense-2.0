@@ -68,13 +68,17 @@ const Profile = () => {
         description: error.message,
         variant: "destructive",
       });
+      setLoading(false);
     } else {
       toast({
         title: "Success",
         description: "Profile updated successfully",
       });
+      // Navigate back to dashboard to see the updated name
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 500);
     }
-    setLoading(false);
   };
 
   return (

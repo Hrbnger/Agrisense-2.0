@@ -10,6 +10,10 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, MessageSquare, ThumbsUp, Clock, Send, Search, Users, Sparkles } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
+// Feature flags to quickly toggle interactive likes without removing code
+const ENABLE_POST_LIKES = false;
+const ENABLE_COMMENT_LIKES = false;
+
 interface ForumPost {
   id: string;
   title: string;
@@ -48,6 +52,7 @@ const Forum = () => {
   const [newComment, setNewComment] = useState<{ [key: string]: string }>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserProfile, setCurrentUserProfile] = useState<{ full_name: string; avatar_url: string | null; updated_at?: string } | null>(null);
+  const [likesAvailable, setLikesAvailable] = useState<boolean>(true);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -250,15 +255,23 @@ const Forum = () => {
         .in("user_id", userIds)
         : Promise.resolve({ data: [] as any[] })),
       (async () => {
-        if (!user) return { data: [] as any[] };
+        if (!ENABLE_POST_LIKES || !user) {
+          setLikesAvailable(false);
+          return { data: [] as any[] };
+        }
         try {
           const { data, error } = await supabase
             .from("post_likes")
             .select("post_id")
             .eq("user_id", user.id);
-          if (error) return { data: [] as any[] };
+          if (error) {
+            setLikesAvailable(false);
+            return { data: [] as any[] };
+          }
+          setLikesAvailable(true);
           return { data };
         } catch {
+          setLikesAvailable(false);
           return { data: [] as any[] };
         }
       })(),
@@ -294,44 +307,23 @@ const Forum = () => {
 
     try {
       if (post.user_has_liked) {
-        // Try unlike in post_likes; if fails, decrement likes_count directly
-        let failed = false;
-        try {
-          const { error } = await supabase
-            .from("post_likes")
-            .delete()
-            .eq("post_id", postId)
-            .eq("user_id", user.id);
-          if (error) failed = true;
-        } catch { failed = true; }
-
-        if (failed) {
-          await supabase
-            .from("forum_posts")
-            .update({ likes_count: Math.max((post.likes_count || 0) - 1, 0) })
-            .eq("id", postId);
-        }
+        // Unlike via post_likes only
+        await supabase
+          .from("post_likes")
+          .delete()
+          .eq("post_id", postId)
+          .eq("user_id", user.id);
       } else {
-        // Try like in post_likes; if fails, increment likes_count directly
-        let failed = false;
-        try {
-          const { error } = await supabase
-            .from("post_likes")
-            .insert({ post_id: postId, user_id: user.id });
-          if (error) failed = true;
-        } catch { failed = true; }
-
-        if (failed) {
-          await supabase
-            .from("forum_posts")
-            .update({ likes_count: (post.likes_count || 0) + 1 })
-            .eq("id", postId);
-        }
+        // Like via post_likes only
+        await supabase
+          .from("post_likes")
+          .insert({ post_id: postId, user_id: user.id });
       }
-      // refresh list
+      // refresh list regardless of like outcome
       fetchPosts();
     } catch (_) {
-      toast({ title: "Error", description: "Failed to update like", variant: "destructive" });
+      // Quietly refresh; some projects may not have post_likes enabled
+      fetchPosts();
     }
   };
 
@@ -398,25 +390,27 @@ const Forum = () => {
 
     let likesCountByComment: Record<string, number> = {};
     let userLikedComments: string[] = [];
-    try {
-      const commentIds = commentsData.map(c => c.id);
-      const { data: likeRows } = await supabase
-        .from("comment_likes")
-        .select("comment_id")
-        .in("comment_id", commentIds);
-      (likeRows || []).forEach((row: any) => {
-        likesCountByComment[row.comment_id] = (likesCountByComment[row.comment_id] || 0) + 1;
-      });
-      if (user) {
-        const { data: userLikes } = await supabase
+    if (ENABLE_COMMENT_LIKES) {
+      try {
+        const commentIds = commentsData.map(c => c.id);
+        const { data: likeRows } = await supabase
           .from("comment_likes")
           .select("comment_id")
-          .eq("user_id", user.id)
           .in("comment_id", commentIds);
-        userLikedComments = (userLikes || []).map((r: any) => r.comment_id);
+        (likeRows || []).forEach((row: any) => {
+          likesCountByComment[row.comment_id] = (likesCountByComment[row.comment_id] || 0) + 1;
+        });
+        if (user) {
+          const { data: userLikes } = await supabase
+            .from("comment_likes")
+            .select("comment_id")
+            .eq("user_id", user.id)
+            .in("comment_id", commentIds);
+          userLikedComments = (userLikes || []).map((r: any) => r.comment_id);
+        }
+      } catch (_) {
+        // ignore
       }
-    } catch (_) {
-      // Table may not exist; ignore
     }
 
     const commentsWithProfiles = commentsData.map(comment => {
@@ -691,17 +685,19 @@ const Forum = () => {
                 <CardContent>
                   <p className="text-foreground mb-6 leading-relaxed whitespace-pre-wrap">{post.content}</p>
                   <div className="flex items-center gap-4 pt-4 border-t">
-                    <button 
-                      onClick={() => handleLike(post.id)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
-                        post.user_has_liked 
-                          ? 'bg-primary/10 text-primary font-medium' 
-                          : 'text-muted-foreground hover:bg-muted hover:text-primary'
-                      }`}
-                    >
-                      <ThumbsUp className={`h-4 w-4 ${post.user_has_liked ? 'fill-current' : ''}`} />
-                      <span className="font-medium">{post.likes_count || 0}</span>
-                    </button>
+                    {ENABLE_POST_LIKES && likesAvailable && (
+                      <button 
+                        onClick={() => handleLike(post.id)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                          post.user_has_liked 
+                            ? 'bg-primary/10 text-primary font-medium' 
+                            : 'text-muted-foreground hover:bg-muted hover:text-primary'
+                        }`}
+                      >
+                        <ThumbsUp className={`h-4 w-4 ${post.user_has_liked ? 'fill-current' : ''}`} />
+                        <span className="font-medium">{post.likes_count || 0}</span>
+                      </button>
+                    )}
                     <button 
                       onClick={() => handleToggleComments(post.id)}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-primary transition-all ${
@@ -749,19 +745,21 @@ const Forum = () => {
                               </span>
                             </div>
                             <p className="text-sm text-foreground leading-relaxed">{comment.content}</p>
-                            <div className="mt-3">
-                              <button 
-                                onClick={() => handleLikeComment(comment.id, post.id)}
-                                className={`flex items-center gap-2 px-2 py-1 rounded-md text-xs transition-all ${
-                                  comment.user_has_liked 
-                                    ? 'bg-primary/10 text-primary font-medium' 
-                                    : 'text-muted-foreground hover:bg-muted hover:text-primary'
-                                }`}
-                              >
-                                <ThumbsUp className={`h-3 w-3 ${comment.user_has_liked ? 'fill-current' : ''}`} />
-                                <span className="font-medium">{comment.likes_count || 0}</span>
-                              </button>
-                            </div>
+                            {ENABLE_COMMENT_LIKES && (
+                              <div className="mt-3">
+                                <button 
+                                  onClick={() => handleLikeComment(comment.id, post.id)}
+                                  className={`flex items-center gap-2 px-2 py-1 rounded-md text-xs transition-all ${
+                                    comment.user_has_liked 
+                                      ? 'bg-primary/10 text-primary font-medium' 
+                                      : 'text-muted-foreground hover:bg-muted hover:text-primary'
+                                  }`}
+                                >
+                                  <ThumbsUp className={`h-3 w-3 ${comment.user_has_liked ? 'fill-current' : ''}`} />
+                                  <span className="font-medium">{comment.likes_count || 0}</span>
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}

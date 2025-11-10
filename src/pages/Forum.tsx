@@ -178,10 +178,10 @@ const Forum = () => {
   const fetchPosts = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     
-    // Fetch minimal columns and limit initial batch for faster load
+    // Fetch posts with a limit for faster load; use * to avoid column mismatches across environments
     const { data: postsData, error: postsError } = await supabase
       .from("forum_posts")
-      .select("id, user_id, title, content, created_at, likes_count, comments_count")
+      .select("*")
       .order("created_at", { ascending: false })
       .limit(20);
 
@@ -195,13 +195,21 @@ const Forum = () => {
       return;
     }
 
+    // If no posts, update state and exit
+    if (!postsData || postsData.length === 0) {
+      setPosts([] as any);
+      return;
+    }
+
     const userIds = [...new Set(postsData.map(post => post.user_id))];
     // Fetch profiles and user-like list in parallel
     const [profilesRes, userLikesRes] = await Promise.all([
-      supabase
+      (userIds.length > 0
+        ? supabase
         .from("profiles")
         .select("user_id, full_name, avatar_url")
-        .in("user_id", userIds),
+        .in("user_id", userIds)
+        : Promise.resolve({ data: [] as any[] })),
       (async () => {
         if (!user) return { data: [] as any[] };
         try {

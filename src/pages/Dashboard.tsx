@@ -198,7 +198,7 @@ const Dashboard = () => {
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE', // Only listen for updates, not inserts/deletes
+          event: '*', // Listen for inserts/updates (e.g., avatar/name changes or initial creation)
           schema: 'public',
           table: 'profiles',
           filter: `user_id=eq.${session.user.id}`, // Only this user's profile

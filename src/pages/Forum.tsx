@@ -29,6 +29,8 @@ interface Comment {
   content: string;
   created_at: string;
   user_id: string;
+  likes_count?: number;
+  user_has_liked?: boolean;
   profiles: {
     full_name: string;
     avatar_url: string | null;
@@ -58,6 +60,18 @@ const Forum = () => {
       .channel('forum-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'forum_posts' }, fetchPosts)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'post_likes' }, fetchPosts)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, async (payload) => {
+        await fetchPosts();
+        const postId = (payload.new as any)?.post_id || (payload.old as any)?.post_id;
+        if (expandedPost && postId === expandedPost) {
+          await fetchCommentsWithLikes(postId);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comment_likes' }, async () => {
+        if (expandedPost) {
+          await fetchCommentsWithLikes(expandedPost);
+        }
+      })
       .subscribe();
 
     return () => {
@@ -94,6 +108,33 @@ const Forum = () => {
       supabase.removeChannel(channel);
     };
   }, [currentUserId]);
+
+  // Subscribe to ANY profile updates to refresh displayed names/avatars in posts/comments
+  useEffect(() => {
+    const channel = supabase
+      .channel('profiles-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+        },
+        async () => {
+          // Refresh posts so author names/avatars update
+          await fetchPosts();
+          // If a post is expanded, also refresh its comments
+          if (expandedPost) {
+            await fetchComments(expandedPost);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [expandedPost]);
 
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -137,6 +178,31 @@ const Forum = () => {
       .select("user_id, full_name, avatar_url")
       .in("user_id", userIds);
 
+    // Compute accurate counts for comments and likes
+    let commentsCountByPost: Record<string, number> = {};
+    let likesCountByPost: Record<string, number> = {};
+    try {
+      const postIds = postsData.map(p => p.id);
+      // Comments count per post (tally on client)
+      const { data: commentRows } = await supabase
+        .from("comments")
+        .select("post_id")
+        .in("post_id", postIds);
+      (commentRows || []).forEach((row: any) => {
+        commentsCountByPost[row.post_id] = (commentsCountByPost[row.post_id] || 0) + 1;
+      });
+      // Likes count per post (tally on client)
+      const { data: likeRows } = await supabase
+        .from("post_likes")
+        .select("post_id")
+        .in("post_id", postIds);
+      (likeRows || []).forEach((row: any) => {
+        likesCountByPost[row.post_id] = (likesCountByPost[row.post_id] || 0) + 1;
+      });
+    } catch (_) {
+      // If tables not available, fall back to stored fields
+    }
+
     // Check which posts the user has liked
     let userLikes: string[] = [];
     if (user) {
@@ -156,6 +222,8 @@ const Forum = () => {
 
     const postsWithProfiles = postsData.map(post => ({
       ...post,
+      likes_count: typeof likesCountByPost[post.id] === "number" ? likesCountByPost[post.id] : (post.likes_count || 0),
+      comments_count: typeof commentsCountByPost[post.id] === "number" ? commentsCountByPost[post.id] : (post.comments_count || 0),
       profiles: profilesData?.find(p => p.user_id === post.user_id) || null,
       user_has_liked: userLikes.includes(post.id)
     }));
@@ -252,13 +320,70 @@ const Forum = () => {
     setComments(prev => ({ ...prev, [postId]: commentsWithProfiles as any }));
   };
 
+  // Enhanced fetch that includes like counts and user like state for comments
+  const fetchCommentsWithLikes = async (postId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: commentsData, error } = await supabase
+      .from("comments")
+      .select("*")
+      .eq("post_id", postId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load comments",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const userIds = [...new Set(commentsData.map(comment => comment.user_id))];
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("user_id, full_name, avatar_url")
+      .in("user_id", userIds);
+
+    let likesCountByComment: Record<string, number> = {};
+    let userLikedComments: string[] = [];
+    try {
+      const commentIds = commentsData.map(c => c.id);
+      const { data: likeRows } = await supabase
+        .from("comment_likes")
+        .select("comment_id")
+        .in("comment_id", commentIds);
+      (likeRows || []).forEach((row: any) => {
+        likesCountByComment[row.comment_id] = (likesCountByComment[row.comment_id] || 0) + 1;
+      });
+      if (user) {
+        const { data: userLikes } = await supabase
+          .from("comment_likes")
+          .select("comment_id")
+          .eq("user_id", user.id)
+          .in("comment_id", commentIds);
+        userLikedComments = (userLikes || []).map((r: any) => r.comment_id);
+      }
+    } catch (_) {
+      // Table may not exist; ignore
+    }
+
+    const commentsWithProfiles = commentsData.map(comment => ({
+      ...comment,
+      likes_count: likesCountByComment[comment.id] || 0,
+      user_has_liked: userLikedComments.includes(comment.id),
+      profiles: profilesData?.find(p => p.user_id === comment.user_id) || null
+    }));
+
+    setComments(prev => ({ ...prev, [postId]: commentsWithProfiles as any }));
+  };
+
   const handleToggleComments = async (postId: string) => {
     if (expandedPost === postId) {
       setExpandedPost(null);
     } else {
       setExpandedPost(postId);
       if (!comments[postId]) {
-        await fetchComments(postId);
+        await fetchCommentsWithLikes(postId);
       }
     }
   };
@@ -302,8 +427,56 @@ const Forum = () => {
       });
     } else {
       setNewComment(prev => ({ ...prev, [postId]: "" }));
-      await fetchComments(postId);
+      await fetchCommentsWithLikes(postId);
       fetchPosts(); // Refresh to update comment count
+    }
+  };
+
+  const handleLikeComment = async (commentId: string, postId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to like comments",
+        variant: "destructive",
+      });
+      navigate("/auth");
+      return;
+    }
+
+    const comment = comments[postId]?.find(c => c.id === commentId);
+    if (!comment) return;
+
+    try {
+      if (comment.user_has_liked) {
+        let failed = false;
+        try {
+          const { error } = await supabase
+            .from("comment_likes")
+            .delete()
+            .eq("comment_id", commentId)
+            .eq("user_id", user.id);
+          if (error) failed = true;
+        } catch { failed = true; }
+        if (failed) {
+          // no fallback if table missing
+        }
+      } else {
+        let failed = false;
+        try {
+          const { error } = await supabase
+            .from("comment_likes")
+            .insert({ comment_id: commentId, user_id: user.id });
+          if (error) failed = true;
+        } catch { failed = true; }
+        if (failed) {
+          // no-op fallback
+        }
+      }
+      await fetchCommentsWithLikes(postId);
+    } catch (_) {
+      toast({ title: "Error", description: "Failed to update like", variant: "destructive" });
     }
   };
 
@@ -518,6 +691,19 @@ const Forum = () => {
                               </span>
                             </div>
                             <p className="text-sm text-foreground leading-relaxed">{comment.content}</p>
+                            <div className="mt-3">
+                              <button 
+                                onClick={() => handleLikeComment(comment.id, post.id)}
+                                className={`flex items-center gap-2 px-2 py-1 rounded-md text-xs transition-all ${
+                                  comment.user_has_liked 
+                                    ? 'bg-primary/10 text-primary font-medium' 
+                                    : 'text-muted-foreground hover:bg-muted hover:text-primary'
+                                }`}
+                              >
+                                <ThumbsUp className={`h-3 w-3 ${comment.user_has_liked ? 'fill-current' : ''}`} />
+                                <span className="font-medium">{comment.likes_count || 0}</span>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}

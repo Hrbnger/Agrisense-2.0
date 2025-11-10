@@ -151,6 +151,26 @@ const Forum = () => {
       
       if (profileData) {
         setCurrentUserProfile(profileData);
+      } else {
+        // Auto-create profile if missing (mirrors Dashboard behavior)
+        const userMetadata: any = user.user_metadata || {};
+        const email = user.email || '';
+        const fullName = userMetadata.full_name || 
+                         userMetadata.name || 
+                         (email ? email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1) : 'User');
+        const { data: newProfile } = await supabase
+          .from("profiles")
+          .insert({
+            user_id: user.id,
+            full_name: fullName,
+            email: email,
+            updated_at: new Date().toISOString(),
+          })
+          .select("full_name, avatar_url, updated_at")
+          .single();
+        if (newProfile) {
+          setCurrentUserProfile(newProfile as any);
+        }
       }
     }
   };
@@ -158,10 +178,12 @@ const Forum = () => {
   const fetchPosts = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     
+    // Fetch minimal columns and limit initial batch for faster load
     const { data: postsData, error: postsError } = await supabase
       .from("forum_posts")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select("id, user_id, title, content, created_at, likes_count, comments_count")
+      .order("created_at", { ascending: false })
+      .limit(20);
 
     if (postsError) {
       console.error("Error fetching posts:", postsError);
@@ -174,59 +196,34 @@ const Forum = () => {
     }
 
     const userIds = [...new Set(postsData.map(post => post.user_id))];
-    const { data: profilesData } = await supabase
-      .from("profiles")
-      .select("user_id, full_name, avatar_url, updated_at")
-      .in("user_id", userIds);
-
-    // Compute accurate counts for comments and likes
-    let commentsCountByPost: Record<string, number> = {};
-    let likesCountByPost: Record<string, number> = {};
-    try {
-      const postIds = postsData.map(p => p.id);
-      // Comments count per post (tally on client)
-      const { data: commentRows } = await supabase
-        .from("comments")
-        .select("post_id")
-        .in("post_id", postIds);
-      (commentRows || []).forEach((row: any) => {
-        commentsCountByPost[row.post_id] = (commentsCountByPost[row.post_id] || 0) + 1;
-      });
-      // Likes count per post (tally on client)
-      const { data: likeRows } = await supabase
-        .from("post_likes")
-        .select("post_id")
-        .in("post_id", postIds);
-      (likeRows || []).forEach((row: any) => {
-        likesCountByPost[row.post_id] = (likesCountByPost[row.post_id] || 0) + 1;
-      });
-    } catch (_) {
-      // If tables not available, fall back to stored fields
-    }
-
-    // Check which posts the user has liked
-    let userLikes: string[] = [];
-    if (user) {
-      // Try reading from post_likes if it exists; otherwise fallback (no per-user like state)
-      try {
-        const { data: likesData, error } = await supabase
-          .from("post_likes")
-          .select("post_id")
-          .eq("user_id", user.id);
-        if (!error) {
-          userLikes = likesData?.map(like => like.post_id) || [];
+    // Fetch profiles and user-like list in parallel
+    const [profilesRes, userLikesRes] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("user_id, full_name, avatar_url")
+        .in("user_id", userIds),
+      (async () => {
+        if (!user) return { data: [] as any[] };
+        try {
+          const { data, error } = await supabase
+            .from("post_likes")
+            .select("post_id")
+            .eq("user_id", user.id);
+          if (error) return { data: [] as any[] };
+          return { data };
+        } catch {
+          return { data: [] as any[] };
         }
-      } catch (_) {
-        // Table might not exist; ignore
-      }
-    }
+      })(),
+    ]);
+
+    const profilesData = profilesRes.data || [];
+    const userLikesList: string[] = (userLikesRes.data as any[])?.map((l: any) => l.post_id) || [];
 
     const postsWithProfiles = postsData.map(post => ({
       ...post,
-      likes_count: typeof likesCountByPost[post.id] === "number" ? likesCountByPost[post.id] : (post.likes_count || 0),
-      comments_count: typeof commentsCountByPost[post.id] === "number" ? commentsCountByPost[post.id] : (post.comments_count || 0),
       profiles: profilesData?.find(p => p.user_id === post.user_id) || null,
-      user_has_liked: userLikes.includes(post.id)
+      user_has_liked: userLikesList.includes(post.id)
     }));
 
     setPosts(postsWithProfiles as any);
@@ -313,10 +310,17 @@ const Forum = () => {
       .select("user_id, full_name, avatar_url, updated_at")
       .in("user_id", userIds);
 
-    const commentsWithProfiles = commentsData.map(comment => ({
-      ...comment,
-      profiles: profilesData?.find(p => p.user_id === comment.user_id) || null
-    }));
+    const commentsWithProfiles = commentsData.map(comment => {
+      const profile = profilesData?.find(p => p.user_id === comment.user_id) || null;
+      // Fallback to current user's profile if own comment and profile missing
+      const resolvedProfile = profile || (comment.user_id === currentUserId && currentUserProfile 
+        ? { user_id: currentUserId, full_name: currentUserProfile.full_name, avatar_url: currentUserProfile.avatar_url }
+        : null);
+      return {
+        ...comment,
+        profiles: resolvedProfile as any
+      };
+    });
 
     setComments(prev => ({ ...prev, [postId]: commentsWithProfiles as any }));
   };
@@ -368,12 +372,18 @@ const Forum = () => {
       // Table may not exist; ignore
     }
 
-    const commentsWithProfiles = commentsData.map(comment => ({
-      ...comment,
-      likes_count: likesCountByComment[comment.id] || 0,
-      user_has_liked: userLikedComments.includes(comment.id),
-      profiles: profilesData?.find(p => p.user_id === comment.user_id) || null
-    }));
+    const commentsWithProfiles = commentsData.map(comment => {
+      const profile = profilesData?.find(p => p.user_id === comment.user_id) || null;
+      const resolvedProfile = profile || (comment.user_id === currentUserId && currentUserProfile 
+        ? { user_id: currentUserId, full_name: currentUserProfile.full_name, avatar_url: currentUserProfile.avatar_url }
+        : null);
+      return {
+        ...comment,
+        likes_count: likesCountByComment[comment.id] || 0,
+        user_has_liked: userLikedComments.includes(comment.id),
+        profiles: resolvedProfile as any
+      };
+    });
 
     setComments(prev => ({ ...prev, [postId]: commentsWithProfiles as any }));
   };

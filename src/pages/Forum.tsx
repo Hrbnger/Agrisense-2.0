@@ -179,14 +179,53 @@ const Forum = () => {
     const { data: { user } } = await supabase.auth.getUser();
     
     // Fetch posts with a limit for faster load; use * to avoid column mismatches across environments
-    const { data: postsData, error: postsError } = await supabase
-      .from("forum_posts")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(20);
+    let postsData: any[] | null = null;
+    let postsError: any = null;
+
+    try {
+      const res = await supabase
+        .from("forum_posts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      postsData = res.data;
+      postsError = res.error;
+    } catch (e) {
+      postsError = e;
+    }
+
+    // Fallback 1: retry without order (if column missing or policy blocks ordering)
+    if (postsError) {
+      console.warn("Posts primary query failed, retrying without order:", postsError);
+      try {
+        const res = await supabase
+          .from("forum_posts")
+          .select("*")
+          .limit(20);
+        postsData = res.data;
+        postsError = res.error;
+      } catch (e) {
+        postsError = e;
+      }
+    }
+
+    // Fallback 2: minimal columns
+    if (postsError) {
+      console.warn("Posts second query failed, retrying with minimal columns:", postsError);
+      try {
+        const res = await supabase
+          .from("forum_posts")
+          .select("id, user_id, title, content, created_at, likes_count, comments_count")
+          .limit(20);
+        postsData = res.data;
+        postsError = res.error;
+      } catch (e) {
+        postsError = e;
+      }
+    }
 
     if (postsError) {
-      console.error("Error fetching posts:", postsError);
+      console.error("Error fetching posts (final):", postsError);
       toast({
         title: "Error",
         description: "Failed to load posts",

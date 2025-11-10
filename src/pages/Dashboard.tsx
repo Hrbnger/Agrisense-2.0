@@ -351,7 +351,7 @@ const Dashboard = () => {
             {/* User Avatar and Name */}
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10 border-2 border-primary/20">
-                <AvatarImage src={profile?.avatar_url ? `${profile.avatar_url}${profile?.updated_at ? `?v=${encodeURIComponent(profile.updated_at)}` : ''}` : undefined} />
+                <AvatarImage src={profile?.avatar_url ? `${profile.avatar_url}?v=${encodeURIComponent(profile?.updated_at || profile?.avatar_url || '')}` : undefined} />
                 <AvatarFallback className="bg-gradient-to-br from-primary to-green-600 text-white font-semibold">
                   {(() => {
                     if (profile?.full_name) return profile.full_name.charAt(0).toUpperCase();

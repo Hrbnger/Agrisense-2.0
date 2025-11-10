@@ -69,10 +69,9 @@ const Forum = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'forum_posts' }, fetchPosts)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, async (payload) => {
         await fetchPosts();
-        const postId = (payload.new as any)?.post_id || (payload.old as any)?.post_id;
-        if (expandedPost && postId === expandedPost) {
-          await fetchCommentsWithLikes(postId);
-        }
+        const commentsData = await fetchCommentsWithProfilesAndLikes(postId, currentUserId);
+setComments(prev => ({ ...prev, [postId]: commentsData }));
+
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comment_likes' }, async () => {
         if (expandedPost) {
@@ -181,7 +180,7 @@ const Forum = () => {
       }
     }
   };
-
+  
   const fetchPosts = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -206,8 +205,8 @@ const Forum = () => {
       console.warn("Posts primary query failed, retrying without order:", postsError);
       try {
         const res = await supabase
-          .from("forum_posts")
-          .select("*")
+      .from("forum_posts")
+      .select("*")
           .limit(20);
         postsData = res.data;
         postsError = res.error;
@@ -252,8 +251,8 @@ const Forum = () => {
     const [profilesRes] = await Promise.all([
       (userIds.length > 0
         ? supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url")
+      .from("profiles")
+      .select("user_id, full_name, avatar_url")
         .in("user_id", userIds)
         : Promise.resolve({ data: [] as any[] }))
     ]);
@@ -316,9 +315,9 @@ const Forum = () => {
     try {
       // Replace any previous rating by this user for this post
       await supabase.from("post_ratings")
-        .delete()
-        .eq("post_id", postId)
-        .eq("user_id", user.id);
+            .delete()
+            .eq("post_id", postId)
+            .eq("user_id", user.id);
       await supabase.from("post_ratings")
         .insert({ post_id: postId, user_id: user.id, rating });
       // Refresh ratings state
@@ -420,7 +419,7 @@ const Forum = () => {
         ? { user_id: currentUserId, full_name: currentUserProfile.full_name, avatar_url: currentUserProfile.avatar_url }
         : null);
       return {
-        ...comment,
+      ...comment,
         likes_count: likesCountByComment[comment.id] || 0,
         user_has_liked: userLikedComments.includes(comment.id),
         profiles: resolvedProfile as any
@@ -690,14 +689,14 @@ const Forum = () => {
                     {ENABLE_POST_RATINGS && ratingsAvailable && (
                       <div className="flex items-center gap-2">
                         {[1,2,3,4,5].map((star) => (
-                          <button
+                    <button 
                             key={star}
                             onClick={() => handleRatePost(post.id, star)}
                             className={`transition-colors ${ (userRatings[post.id] || 0) >= star ? 'text-yellow-500' : 'text-muted-foreground hover:text-yellow-500'}`}
                             aria-label={`Rate ${star} star${star>1?'s':''}`}
                           >
                             ★
-                          </button>
+                    </button>
                         ))}
                         <span className="text-xs text-muted-foreground ml-1">
                           {avgRatings[post.id]?.avg ? avgRatings[post.id].avg.toFixed(1) : "0.0"} ({avgRatings[post.id]?.count || 0})

@@ -215,7 +215,7 @@ const Forum = () => {
       try {
         const res = await supabase
           .from("forum_posts")
-          .select("id, user_id, title, content, created_at, likes_count, comments_count")
+          .select("id, user_id, title, content, created_at")
           .limit(20);
         postsData = res.data;
         postsError = res.error;

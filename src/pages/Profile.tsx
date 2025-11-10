@@ -162,7 +162,7 @@ const Profile = () => {
         // This works even if Supabase Storage isn't configured
         const { error: updateError } = await supabase
           .from("profiles")
-          .update({ avatar_url: avatarPreview })
+          .update({ avatar_url: avatarPreview, updated_at: new Date().toISOString() })
           .eq("user_id", user.id);
 
         if (updateError) throw updateError;
@@ -185,7 +185,7 @@ const Profile = () => {
       // Update profile record with the storage URL
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ avatar_url: publicUrl })
+        .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
         .eq("user_id", user.id);
 
       if (updateError) throw updateError;
@@ -243,6 +243,7 @@ const Profile = () => {
         location,
         phone,
         avatar_url: avatarUrl, // May have been updated via handleAvatarUpload
+        updated_at: new Date().toISOString(),
       })
       .eq("user_id", user.id);
 

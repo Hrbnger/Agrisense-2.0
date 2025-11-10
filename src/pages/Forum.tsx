@@ -47,7 +47,7 @@ const Forum = () => {
   const [comments, setComments] = useState<{ [key: string]: Comment[] }>({});
   const [newComment, setNewComment] = useState<{ [key: string]: string }>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserProfile, setCurrentUserProfile] = useState<{ full_name: string; avatar_url: string | null } | null>(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState<{ full_name: string; avatar_url: string | null; updated_at?: string } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -97,6 +97,7 @@ const Forum = () => {
           setCurrentUserProfile({
             full_name: payload.new.full_name,
             avatar_url: payload.new.avatar_url,
+            updated_at: payload.new.updated_at,
           });
           // Also refetch posts to update displayed names/avatars
           fetchPosts();
@@ -144,7 +145,7 @@ const Forum = () => {
     if (user) {
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("full_name, avatar_url")
+        .select("full_name, avatar_url, updated_at")
         .eq("user_id", user.id)
         .maybeSingle();
       
@@ -175,7 +176,7 @@ const Forum = () => {
     const userIds = [...new Set(postsData.map(post => post.user_id))];
     const { data: profilesData } = await supabase
       .from("profiles")
-      .select("user_id, full_name, avatar_url")
+      .select("user_id, full_name, avatar_url, updated_at")
       .in("user_id", userIds);
 
     // Compute accurate counts for comments and likes
@@ -309,7 +310,7 @@ const Forum = () => {
     const userIds = [...new Set(commentsData.map(comment => comment.user_id))];
     const { data: profilesData } = await supabase
       .from("profiles")
-      .select("user_id, full_name, avatar_url")
+      .select("user_id, full_name, avatar_url, updated_at")
       .in("user_id", userIds);
 
     const commentsWithProfiles = commentsData.map(comment => ({
@@ -608,7 +609,7 @@ const Forum = () => {
                 <CardHeader>
                   <div className="flex items-start gap-4">
                     <Avatar className="h-12 w-12 border-2 border-primary/20">
-                      <AvatarImage src={post.profiles?.avatar_url || undefined} />
+                      <AvatarImage src={post.profiles?.avatar_url ? `${post.profiles.avatar_url}` : undefined} />
                       <AvatarFallback className="bg-gradient-to-br from-primary to-green-600 text-white font-semibold">
                         {(post.profiles?.full_name || "A").charAt(0).toUpperCase()}
                       </AvatarFallback>
@@ -674,7 +675,7 @@ const Forum = () => {
                       {comments[post.id]?.map((comment) => (
                         <div key={comment.id} className="flex gap-3 group">
                           <Avatar className="h-8 w-8 mt-1 border border-border">
-                            <AvatarImage src={comment.profiles?.avatar_url || undefined} />
+                            <AvatarImage src={comment.profiles?.avatar_url ? `${comment.profiles.avatar_url}` : undefined} />
                             <AvatarFallback className="bg-gradient-to-br from-primary/20 to-green-500/20 text-xs font-medium">
                               {(comment.profiles?.full_name || "A").charAt(0).toUpperCase()}
                             </AvatarFallback>
@@ -712,7 +713,7 @@ const Forum = () => {
                       {currentUserId && (
                         <div className="flex gap-2 pt-2">
                           <Avatar className="h-10 w-10 border border-border">
-                            <AvatarImage src={currentUserProfile?.avatar_url || undefined} />
+                            <AvatarImage src={currentUserProfile?.avatar_url ? `${currentUserProfile.avatar_url}${currentUserProfile.updated_at ? `?v=${encodeURIComponent(currentUserProfile.updated_at)}` : ''}` : undefined} />
                             <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
                               {(currentUserProfile?.full_name || currentUserId || "U").charAt(0).toUpperCase()}
                             </AvatarFallback>

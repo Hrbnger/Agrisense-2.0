@@ -13,6 +13,7 @@ import { formatDistanceToNow } from "date-fns";
 // Feature flags to quickly toggle interactive likes without removing code
 const ENABLE_POST_LIKES = false;
 const ENABLE_COMMENT_LIKES = false;
+const ENABLE_POST_RATINGS = true;
 
 interface ForumPost {
   id: string;
@@ -52,7 +53,9 @@ const Forum = () => {
   const [newComment, setNewComment] = useState<{ [key: string]: string }>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserProfile, setCurrentUserProfile] = useState<{ full_name: string; avatar_url: string | null; updated_at?: string } | null>(null);
-  const [likesAvailable, setLikesAvailable] = useState<boolean>(true);
+  const [ratingsAvailable, setRatingsAvailable] = useState<boolean>(true);
+  const [avgRatings, setAvgRatings] = useState<{[postId: string]: { avg: number; count: number }}>({});
+  const [userRatings, setUserRatings] = useState<{[postId: string]: number}>({});
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -64,7 +67,6 @@ const Forum = () => {
     const channel = supabase
       .channel('forum-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'forum_posts' }, fetchPosts)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_likes' }, fetchPosts)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, async (payload) => {
         await fetchPosts();
         const postId = (payload.new as any)?.post_id || (payload.old as any)?.post_id;
@@ -247,83 +249,82 @@ const Forum = () => {
 
     const userIds = [...new Set(postsData.map(post => post.user_id))];
     // Fetch profiles and user-like list in parallel
-    const [profilesRes, userLikesRes] = await Promise.all([
+    const [profilesRes] = await Promise.all([
       (userIds.length > 0
         ? supabase
         .from("profiles")
         .select("user_id, full_name, avatar_url")
         .in("user_id", userIds)
-        : Promise.resolve({ data: [] as any[] })),
-      (async () => {
-        if (!ENABLE_POST_LIKES || !user) {
-          setLikesAvailable(false);
-          return { data: [] as any[] };
-        }
-        try {
-          const { data, error } = await supabase
-            .from("post_likes")
-            .select("post_id")
-            .eq("user_id", user.id);
-          if (error) {
-            setLikesAvailable(false);
-            return { data: [] as any[] };
-          }
-          setLikesAvailable(true);
-          return { data };
-        } catch {
-          setLikesAvailable(false);
-          return { data: [] as any[] };
-        }
-      })(),
+        : Promise.resolve({ data: [] as any[] }))
     ]);
 
     const profilesData = profilesRes.data || [];
-    const userLikesList: string[] = (userLikesRes.data as any[])?.map((l: any) => l.post_id) || [];
+
+    // Optional: fetch ratings in parallel
+    let ratingsByPost: {[id:string]: {avg:number; count:number}} = {};
+    let myRatings: {[id:string]: number} = {};
+    if (ENABLE_POST_RATINGS) {
+      try {
+        const postIds = postsData.map(p => p.id);
+        const [allRatingsRes, myRatingsRes] = await Promise.all([
+          supabase.from("post_ratings").select("post_id, rating").in("post_id", postIds),
+          user ? supabase.from("post_ratings").select("post_id, rating").eq("user_id", user.id) : Promise.resolve({ data: [] as any[] })
+        ] as any);
+        const allRows = (allRatingsRes as any)?.data || [];
+        const buckets: {[id:string]: {sum:number; count:number}} = {};
+        allRows.forEach((r: any) => {
+          if (!buckets[r.post_id]) buckets[r.post_id] = { sum: 0, count: 0 };
+          buckets[r.post_id].sum += Number(r.rating) || 0;
+          buckets[r.post_id].count += 1;
+        });
+        Object.keys(buckets).forEach(id => {
+          const b = buckets[id];
+          ratingsByPost[id] = { avg: b.count ? b.sum / b.count : 0, count: b.count };
+        });
+        const mine = (myRatingsRes as any)?.data || [];
+        mine.forEach((r: any) => { myRatings[r.post_id] = Number(r.rating) || 0; });
+        setRatingsAvailable(true);
+      } catch (_) {
+        setRatingsAvailable(false);
+      }
+    }
+    setAvgRatings(ratingsByPost);
+    setUserRatings(myRatings);
 
     const postsWithProfiles = postsData.map(post => ({
       ...post,
-      profiles: profilesData?.find(p => p.user_id === post.user_id) || null,
-      user_has_liked: userLikesList.includes(post.id)
+      profiles: profilesData?.find(p => p.user_id === post.user_id) || null
     }));
 
     setPosts(postsWithProfiles as any);
   };
 
-  const handleLike = async (postId: string) => {
+  // Post like feature removed
+
+  const handleRatePost = async (postId: string, rating: number) => {
+    if (!ENABLE_POST_RATINGS) return;
     const { data: { user } } = await supabase.auth.getUser();
-    
     if (!user) {
       toast({
         title: "Authentication required",
-        description: "Please sign in to like posts",
+        description: "Please sign in to rate posts",
         variant: "destructive",
       });
       navigate("/auth");
       return;
     }
-
-    const post = posts.find(p => p.id === postId);
-    if (!post) return;
-
     try {
-      if (post.user_has_liked) {
-        // Unlike via post_likes only
-        await supabase
-          .from("post_likes")
-          .delete()
-          .eq("post_id", postId)
-          .eq("user_id", user.id);
-      } else {
-        // Like via post_likes only
-        await supabase
-          .from("post_likes")
-          .insert({ post_id: postId, user_id: user.id });
-      }
-      // refresh list regardless of like outcome
-      fetchPosts();
+      // Replace any previous rating by this user for this post
+      await supabase.from("post_ratings")
+        .delete()
+        .eq("post_id", postId)
+        .eq("user_id", user.id);
+      await supabase.from("post_ratings")
+        .insert({ post_id: postId, user_id: user.id, rating });
+      // Refresh ratings state
+      await fetchPosts();
     } catch (_) {
-      // Quietly refresh; some projects may not have post_likes enabled
-      fetchPosts();
+      // ignore
     }
   };
 
@@ -685,18 +686,23 @@ const Forum = () => {
                 <CardContent>
                   <p className="text-foreground mb-6 leading-relaxed whitespace-pre-wrap">{post.content}</p>
                   <div className="flex items-center gap-4 pt-4 border-t">
-                    {ENABLE_POST_LIKES && likesAvailable && (
-                      <button 
-                        onClick={() => handleLike(post.id)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
-                          post.user_has_liked 
-                            ? 'bg-primary/10 text-primary font-medium' 
-                            : 'text-muted-foreground hover:bg-muted hover:text-primary'
-                        }`}
-                      >
-                        <ThumbsUp className={`h-4 w-4 ${post.user_has_liked ? 'fill-current' : ''}`} />
-                        <span className="font-medium">{post.likes_count || 0}</span>
-                      </button>
+                    {/* Rating */}
+                    {ENABLE_POST_RATINGS && ratingsAvailable && (
+                      <div className="flex items-center gap-2">
+                        {[1,2,3,4,5].map((star) => (
+                          <button
+                            key={star}
+                            onClick={() => handleRatePost(post.id, star)}
+                            className={`transition-colors ${ (userRatings[post.id] || 0) >= star ? 'text-yellow-500' : 'text-muted-foreground hover:text-yellow-500'}`}
+                            aria-label={`Rate ${star} star${star>1?'s':''}`}
+                          >
+                            ★
+                          </button>
+                        ))}
+                        <span className="text-xs text-muted-foreground ml-1">
+                          {avgRatings[post.id]?.avg ? avgRatings[post.id].avg.toFixed(1) : "0.0"} ({avgRatings[post.id]?.count || 0})
+                        </span>
+                      </div>
                     )}
                     <button 
                       onClick={() => handleToggleComments(post.id)}

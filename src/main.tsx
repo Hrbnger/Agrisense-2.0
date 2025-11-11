@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route } from "react-router-dom"; // ✅ Use HashRouter
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/hooks/useAuth";
 import { Toaster } from "@/components/ui/toaster";
@@ -18,9 +18,15 @@ import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <ThemeProvider defaultTheme="system" storageKey="agrisense-theme" enableSystem attribute="class">
+    <ThemeProvider
+      defaultTheme="system"
+      storageKey="agrisense-theme"
+      enableSystem
+      attribute="class"
+    >
       <AuthProvider>
-        <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+        {/* ✅ Use HashRouter for GitHub Pages routing */}
+        <HashRouter>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
@@ -33,7 +39,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/weather" element={<Weather />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
+        </HashRouter>
+
         <Toaster />
       </AuthProvider>
     </ThemeProvider>

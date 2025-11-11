@@ -159,26 +159,19 @@ const Auth = () => {
    */
   const handleGoogleSignIn = async () => {
     try {
-      // Get the base URL path (e.g., '/Agrisense-2.0/' for GitHub Pages)
-      const baseUrl = import.meta.env.BASE_URL || '/';
-      // Construct the redirect path, handling trailing slashes
-      const redirectPath = baseUrl.endsWith('/') 
-        ? `${baseUrl}dashboard` 
-        : `${baseUrl}/dashboard`;
-      
-      // Initiate OAuth flow with Google
-      // User will be redirected to Google, then back to our redirect URL
+      // Determine redirect path
+      const isLocal = window.location.hostname === "localhost";
+      const redirectTo = isLocal
+        ? "http://localhost:8080/#/dashboard" // for Vite local dev
+        : "https://hrbnger.github.io/Agrisense-2.0/#/dashboard"; // for GitHub Pages
+  
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          // Dynamic redirect URL that works in all environments
-          redirectTo: `${window.location.origin}${redirectPath}`,
-        },
+        options: { redirectTo },
       });
-
+  
       if (error) throw error;
-      // Note: User will be redirected away from this page to Google
-      // The useEffect will handle the callback when they return
+      // User will be redirected to Google, then back to /dashboard
     } catch (error: any) {
       toast({
         title: "Google sign in failed",

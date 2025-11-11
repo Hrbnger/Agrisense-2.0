@@ -12,7 +12,6 @@ export default function Forum() {
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Fetch all forum posts with author info
   const fetchPosts = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -39,7 +38,6 @@ export default function Forum() {
     setLoading(false);
   };
 
-  // ✅ Fetch comments for one post with author info
   const fetchComments = async (postId: string) => {
     const { data, error } = await supabase
       .from("comments")
@@ -94,17 +92,17 @@ export default function Forum() {
   }, []);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-center">🌱 AgriSense Forum</h1>
+    <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold text-center">🌱 AgriSense Forum</h1>
 
       {loading ? (
         <div className="flex justify-center py-10">
           <Loader2 className="animate-spin w-6 h-6" />
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="flex flex-col gap-4">
           {posts.map((post) => (
-            <Card key={post.id} className="hover:shadow-lg transition">
+            <Card key={post.id} className="hover:shadow-lg transition w-full">
               <CardHeader className="flex items-center gap-3">
                 <Avatar>
                   <AvatarImage
@@ -115,17 +113,19 @@ export default function Forum() {
                     {post.profiles?.full_name?.[0] || "?"}
                   </AvatarFallback>
                 </Avatar>
-                <CardTitle>{post.profiles?.full_name || "Anonymous"}</CardTitle>
+                <CardTitle className="text-sm sm:text-base">
+                  {post.profiles?.full_name || "Anonymous"}
+                </CardTitle>
               </CardHeader>
 
-              <CardContent>
-                <h2 className="font-semibold text-lg mb-1">{post.title}</h2>
-                <p className="text-gray-700 mb-2">{post.content}</p>
+              <CardContent className="flex flex-col gap-2">
+                <h2 className="font-semibold text-base sm:text-lg">{post.title}</h2>
+                <p className="text-gray-700 text-sm sm:text-base">{post.content}</p>
 
                 <Button
                   variant="outline"
                   onClick={() => handleViewPost(post)}
-                  className="text-sm"
+                  className="text-xs sm:text-sm mt-2 self-start"
                 >
                   View Discussion
                 </Button>
@@ -136,52 +136,56 @@ export default function Forum() {
       )}
 
       {selectedPost && (
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>{selectedPost.title}</CardTitle>
-            <p className="text-gray-600">{selectedPost.content}</p>
+        <Card className="mt-6 w-full">
+          <CardHeader className="flex flex-col gap-2">
+            <CardTitle className="text-lg sm:text-xl">{selectedPost.title}</CardTitle>
+            <p className="text-gray-600 text-sm sm:text-base">{selectedPost.content}</p>
           </CardHeader>
-          <CardContent>
-            <h3 className="font-semibold mb-2">Comments</h3>
+          <CardContent className="flex flex-col gap-4">
+            <h3 className="font-semibold text-sm sm:text-base">Comments</h3>
+
             {selectedPost.comments.length === 0 ? (
               <p className="text-gray-500 text-sm">No comments yet</p>
             ) : (
-              selectedPost.comments.map((c) => (
-                <div
-                  key={c.id}
-                  className="border-t py-2 flex items-start gap-3"
-                >
-                  <Avatar>
-                    <AvatarImage
-                      src={c.profiles?.avatar_url || "/default-avatar.png"}
-                      alt={c.profiles?.full_name || "User"}
-                    />
-                    <AvatarFallback>
-                      {c.profiles?.full_name?.[0] || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm font-medium">
-                      {c.profiles?.full_name || "Anonymous"}
-                    </p>
-                    <p className="text-gray-700">{c.content}</p>
+              <div className="flex flex-col gap-3">
+                {selectedPost.comments.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-start gap-3 border-t pt-2"
+                  >
+                    <Avatar>
+                      <AvatarImage
+                        src={c.profiles?.avatar_url || "/default-avatar.png"}
+                        alt={c.profiles?.full_name || "User"}
+                      />
+                      <AvatarFallback>
+                        {c.profiles?.full_name?.[0] || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{c.profiles?.full_name || "Anonymous"}</p>
+                      <p className="text-gray-700 text-sm">{c.content}</p>
+                    </div>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
 
-            <div className="flex gap-2 mt-3">
+            <div className="flex flex-col sm:flex-row gap-2 mt-2">
               <Textarea
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 placeholder="Write a comment..."
+                className="flex-1 min-h-[80px]"
               />
-              <Button onClick={handleAddComment}>Post</Button>
+              <Button onClick={handleAddComment} className="sm:w-auto w-full">
+                Post
+              </Button>
             </div>
 
             <Button
               variant="ghost"
-              className="mt-4 text-sm"
+              className="mt-4 text-sm self-start"
               onClick={() => setSelectedPost(null)}
             >
               ← Back to posts

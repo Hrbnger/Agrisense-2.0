@@ -27,62 +27,46 @@ const Weather = () => {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [permissionState, setPermissionState] = useState<"prompt" | "granted" | "denied">("prompt");
 
   useEffect(() => {
-    checkLocationPermission();
     getWeatherData();
   }, []);
 
-  const checkLocationPermission = async () => {
-    if ('permissions' in navigator) {
-      try {
-        const permission = await navigator.permissions.query({ name: 'geolocation' });
-        setPermissionState(permission.state);
-        
-        permission.addEventListener('change', () => {
-          setPermissionState(permission.state);
-        });
-      } catch (error) {
-        console.log("Permission API not supported");
-      }
-    }
-  };
-
-  const saveLocationToProfile = async (location: string, latitude: number, longitude: number) => {
+  const getLocationFromProfile = async (): Promise<{ location: string; latitude: number; longitude: number } | null> => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from('profiles')
-          .update({ location })
-          .eq('user_id', user.id);
+      if (!user) {
+        return null;
       }
-    } catch (error) {
-      console.error("Failed to save location:", error);
-    }
-  };
 
-  const getLocationName = async (latitude: number, longitude: number): Promise<string> => {
-    try {
-      // Use OpenStreetMap Nominatim for reverse geocoding (free, no API key)
+      const { data } = await supabase
+        .from('profiles')
+        .select('location')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!data?.location) {
+        return null;
+      }
+
+      // Use forward geocoding to convert location string to coordinates
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(data.location)}&format=json&limit=1`
       );
-      const data = await response.json();
-      
-      // Extract city, town, or village name
-      const locationName = data.address.city || 
-                          data.address.town || 
-                          data.address.village || 
-                          data.address.county || 
-                          data.address.state || 
-                          "Unknown Location";
-      
-      return `${locationName}, ${data.address.country || ''}`;
+      const geocodeData = await response.json();
+
+      if (geocodeData && geocodeData.length > 0) {
+        return {
+          location: data.location,
+          latitude: parseFloat(geocodeData[0].lat),
+          longitude: parseFloat(geocodeData[0].lon)
+        };
+      }
+
+      return null;
     } catch (error) {
-      console.error("Failed to get location name:", error);
-      return `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`;
+      console.error("Failed to get location from profile:", error);
+      return null;
     }
   };
 
@@ -91,111 +75,68 @@ const Weather = () => {
     setLocationError(null);
     
     try {
-      // Check if geolocation is supported
-      if (!navigator.geolocation) {
-        setLocationError("Your browser doesn't support location services");
+      // Get location from user profile (set in Settings)
+      const locationData = await getLocationFromProfile();
+      
+      if (!locationData) {
+        setLocationError("Location not enabled. Please enable location services in Settings.");
         toast({
-          title: "Location not supported",
-          description: "Your browser doesn't support geolocation",
+          title: "Location Required",
+          description: "Please enable location services in Settings to view weather data",
           variant: "destructive",
         });
         setLoading(false);
         return;
       }
 
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords;
-          
-          try {
-            // Fetch weather data from Open-Meteo API with more parameters
-            const response = await fetch(
-              `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=uv_index_max&timezone=auto`
-            );
-            
-            if (!response.ok) {
-              throw new Error("Failed to fetch weather data");
-            }
-            
-            const data = await response.json();
-            
-            // Get location name
-            const locationName = await getLocationName(latitude, longitude);
-            
-            // Save location to user profile
-            await saveLocationToProfile(locationName, latitude, longitude);
-            
-            // Map weather codes to conditions
-            const weatherCode = data.current.weather_code;
-            const conditions = [
-              { codes: [0], label: "Clear Sky" },
-              { codes: [1, 2, 3], label: "Partly Cloudy" },
-              { codes: [45, 48], label: "Foggy" },
-              { codes: [51, 53, 55], label: "Drizzle" },
-              { codes: [61, 63, 65], label: "Rainy" },
-              { codes: [71, 73, 75, 77], label: "Snowy" },
-              { codes: [80, 81, 82], label: "Rain Showers" },
-              { codes: [95, 96, 99], label: "Thunderstorm" },
-            ];
-            
-            const condition = conditions.find(c => c.codes.includes(weatherCode))?.label || "Unknown";
-            
-            setWeather({
-              temp: Math.round(data.current.temperature_2m),
-              feelsLike: Math.round(data.current.apparent_temperature),
-              humidity: data.current.relative_humidity_2m,
-              windSpeed: Math.round(data.current.wind_speed_10m),
-              precipitation: data.current.precipitation || 0,
-              uvIndex: data.daily.uv_index_max[0] || 0,
-              condition,
-              location: locationName,
-              latitude,
-              longitude,
-            });
-            setPermissionState("granted");
-            setLoading(false);
-            
-            toast({
-              title: "Weather updated",
-              description: `Weather data for ${locationName}`,
-            });
-          } catch (error) {
-            setLocationError("Failed to fetch weather data. Please try again.");
-            setLoading(false);
-          }
-        },
-        (error) => {
-          let errorMessage = "Please enable location access in your browser settings";
-          
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage = "Location access denied. Please enable it in your browser settings.";
-              setPermissionState("denied");
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMessage = "Location information unavailable. Please check your device settings.";
-              break;
-            case error.TIMEOUT:
-              errorMessage = "Location request timed out. Please try again.";
-              break;
-          }
-          
-          setLocationError(errorMessage);
-          toast({
-            title: "Location access issue",
-            description: errorMessage,
-            variant: "destructive",
-          });
-          setLoading(false);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        }
+      const { location, latitude, longitude } = locationData;
+
+      // Fetch weather data from Open-Meteo API with more parameters
+      const response = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=uv_index_max&timezone=auto`
       );
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch weather data");
+      }
+      
+      const data = await response.json();
+      
+      // Map weather codes to conditions
+      const weatherCode = data.current.weather_code;
+      const conditions = [
+        { codes: [0], label: "Clear Sky" },
+        { codes: [1, 2, 3], label: "Partly Cloudy" },
+        { codes: [45, 48], label: "Foggy" },
+        { codes: [51, 53, 55], label: "Drizzle" },
+        { codes: [61, 63, 65], label: "Rainy" },
+        { codes: [71, 73, 75, 77], label: "Snowy" },
+        { codes: [80, 81, 82], label: "Rain Showers" },
+        { codes: [95, 96, 99], label: "Thunderstorm" },
+      ];
+      
+      const condition = conditions.find(c => c.codes.includes(weatherCode))?.label || "Unknown";
+      
+      setWeather({
+        temp: Math.round(data.current.temperature_2m),
+        feelsLike: Math.round(data.current.apparent_temperature),
+        humidity: data.current.relative_humidity_2m,
+        windSpeed: Math.round(data.current.wind_speed_10m),
+        precipitation: data.current.precipitation || 0,
+        uvIndex: data.daily.uv_index_max[0] || 0,
+        condition,
+        location,
+        latitude,
+        longitude,
+      });
+      setLoading(false);
+      
+      toast({
+        title: "Weather updated",
+        description: `Weather data for ${location}`,
+      });
     } catch (error) {
-      setLocationError("An unexpected error occurred");
+      setLocationError("Failed to fetch weather data. Please try again.");
       toast({
         title: "Error",
         description: "Failed to fetch weather data",
@@ -238,19 +179,20 @@ const Weather = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {/* Location Permission Alert */}
+            {/* Location Error Alert */}
             {locationError && (
               <Alert variant="destructive" className="mb-6">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Location Access Required</AlertTitle>
+                <AlertTitle>Location Required</AlertTitle>
                 <AlertDescription>
                   {locationError}
                   <br />
                   <strong>How to enable:</strong>
                   <ul className="list-disc ml-6 mt-2">
-                    <li>Click the location icon in your browser's address bar</li>
-                    <li>Select "Allow" for location access</li>
-                    <li>Refresh this page or click the refresh button above</li>
+                    <li>Go to Settings in the app</li>
+                    <li>Enable "Location Services" toggle</li>
+                    <li>Allow location access when prompted</li>
+                    <li>Return to this page and refresh</li>
                   </ul>
                 </AlertDescription>
               </Alert>
@@ -259,7 +201,7 @@ const Weather = () => {
             {loading ? (
               <div className="text-center py-8">
                 <RefreshCw className="h-12 w-12 mx-auto mb-4 animate-spin text-primary" />
-                <p className="text-muted-foreground">Getting your location and weather data...</p>
+                <p className="text-muted-foreground">Loading weather data...</p>
               </div>
             ) : weather ? (
               <>

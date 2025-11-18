@@ -234,26 +234,29 @@ const Dashboard = () => {
   const fetchRecentActivity = async (userId: string) => {
     setLoadingActivity(true);
     try {
-      // Fetch recent plant identifications (last 5)
-      const { data: plantsData } = await supabase
-        .from("plants")
-        .select("id, plant_name, confidence, image_url, created_at")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(5);
+      // Fetch both plant identifications and disease diagnoses in parallel for faster loading
+      const [plantsResult, diseasesResult] = await Promise.all([
+        supabase
+          .from("plants")
+          .select("id, plant_name, confidence, image_url, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(5),
+        supabase
+          .from("diseases")
+          .select("id, disease_name, confidence, image_url, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(5)
+      ]);
 
-      // Fetch recent disease diagnoses (last 5)
-      const { data: diseasesData } = await supabase
-        .from("diseases")
-        .select("id, disease_name, confidence, image_url, created_at, treatment")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(5);
+      const plantsData = plantsResult.data || [];
+      const diseasesData = diseasesResult.data || [];
 
       // Combine both types into a unified activity list
       // Map plant data to ActivityItem format
       const activities: ActivityItem[] = [
-        ...(plantsData || []).map(p => ({
+        ...plantsData.map(p => ({
           id: p.id,
           type: 'plant' as const,
           name: p.plant_name,
@@ -262,7 +265,7 @@ const Dashboard = () => {
           image_url: p.image_url,
         })),
         // Map disease data to ActivityItem format
-        ...(diseasesData || []).map(d => ({
+        ...diseasesData.map(d => ({
           id: d.id,
           type: 'disease' as const,
           name: d.disease_name,

@@ -69,13 +69,13 @@ const Forum = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'forum_posts' }, fetchPosts)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, async (payload) => {
         await fetchPosts();
-        const commentsData = await fetchCommentsWithProfilesAndLikes(postId, currentUserId);
-setComments(prev => ({ ...prev, [postId]: commentsData }));
-
+        if (expandedPost) {
+          await fetchCommentsWithProfilesLikes(expandedPost);
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comment_likes' }, async () => {
         if (expandedPost) {
-          await fetchCommentsWithLikes(expandedPost);
+          await fetchCommentsWithProfilesLikes(expandedPost);
         }
       })
       .subscribe();
@@ -247,17 +247,33 @@ setComments(prev => ({ ...prev, [postId]: commentsData }));
     }
 
     const userIds = [...new Set(postsData.map(post => post.user_id))];
-    // Fetch profiles and user-like list in parallel
-    const [profilesRes] = await Promise.all([
+    const postIds = postsData.map(p => p.id);
+    
+    // Fetch profiles, comment counts, and user-like list in parallel
+    const [profilesRes, commentsRes] = await Promise.all([
       (userIds.length > 0
         ? supabase
       .from("profiles")
       .select("user_id, full_name, avatar_url")
         .in("user_id", userIds)
+        : Promise.resolve({ data: [] as any[] })),
+      (postIds.length > 0
+        ? supabase
+          .from("comments")
+          .select("post_id")
+          .in("post_id", postIds)
         : Promise.resolve({ data: [] as any[] }))
     ]);
 
     const profilesData = profilesRes.data || [];
+    
+    // Calculate comment counts for each post
+    const commentCounts: { [postId: string]: number } = {};
+    if (commentsRes.data) {
+      commentsRes.data.forEach((comment: any) => {
+        commentCounts[comment.post_id] = (commentCounts[comment.post_id] || 0) + 1;
+      });
+    }
 
     // Optional: fetch ratings in parallel
     let ratingsByPost: {[id:string]: {avg:number; count:number}} = {};
@@ -292,7 +308,9 @@ setComments(prev => ({ ...prev, [postId]: commentsData }));
 
     const postsWithProfiles = postsData.map(post => ({
       ...post,
-      profiles: profilesData?.find(p => p.user_id === post.user_id) || null
+      profiles: profilesData?.find(p => p.user_id === post.user_id) || null,
+      comments_count: commentCounts[post.id] || 0,
+      likes_count: post.likes_count || 0
     }));
 
     setPosts(postsWithProfiles as any);
@@ -312,6 +330,43 @@ setComments(prev => ({ ...prev, [postId]: commentsData }));
       navigate("/auth");
       return;
     }
+    
+    // Optimistically update UI immediately
+    const previousRating = userRatings[postId] || 0;
+    const currentAvg = avgRatings[postId];
+    
+    // Update user rating immediately
+    setUserRatings(prev => ({ ...prev, [postId]: rating }));
+    
+    // Recalculate average rating immediately
+    if (currentAvg) {
+      let newSum = currentAvg.avg * currentAvg.count;
+      let newCount = currentAvg.count;
+      
+      // If user had a previous rating, subtract it (count stays same)
+      if (previousRating > 0) {
+        newSum = newSum - previousRating;
+      } else {
+        // New rating, increment count
+        newCount = currentAvg.count + 1;
+      }
+      // Add new rating
+      newSum = newSum + rating;
+      const newAvg = newCount > 0 ? newSum / newCount : 0;
+      
+      setAvgRatings(prev => ({
+        ...prev,
+        [postId]: { avg: newAvg, count: newCount }
+      }));
+    } else {
+      // First rating for this post
+      setAvgRatings(prev => ({
+        ...prev,
+        [postId]: { avg: rating, count: 1 }
+      }));
+    }
+    
+    // Update database in the background
     try {
       // Replace any previous rating by this user for this post
       await supabase.from("post_ratings")
@@ -320,10 +375,15 @@ setComments(prev => ({ ...prev, [postId]: commentsData }));
             .eq("user_id", user.id);
       await supabase.from("post_ratings")
         .insert({ post_id: postId, user_id: user.id, rating });
-      // Refresh ratings state
-      await fetchPosts();
+      // Optionally refresh from DB to ensure consistency (but don't wait)
+      fetchPosts().catch(() => {
+        // Silently fail - optimistic update already shown
+      });
     } catch (_) {
-      // ignore
+      // On error, revert optimistic update by refreshing from DB
+      fetchPosts().catch(() => {
+        // ignore
+      });
     }
   };
 
@@ -435,7 +495,7 @@ setComments(prev => ({ ...prev, [postId]: commentsData }));
     } else {
       setExpandedPost(postId);
       if (!comments[postId]) {
-        await fetchCommentsWithProfilesAndLikes(postId);
+        await fetchCommentsWithProfilesLikes(postId);
       }
     }
   };
@@ -479,8 +539,8 @@ setComments(prev => ({ ...prev, [postId]: commentsData }));
       });
     } else {
       setNewComment(prev => ({ ...prev, [postId]: "" }));
-      await fetchCommentsWithLikes(postId);
-      fetchPosts(); // Refresh to update comment count
+      await fetchCommentsWithProfilesLikes(postId);
+      await fetchPosts(); // Refresh to update comment count
     }
   };
 
@@ -526,7 +586,7 @@ setComments(prev => ({ ...prev, [postId]: commentsData }));
           // no-op fallback
         }
       }
-      await fetchCommentsWithLikes(postId);
+      await fetchCommentsWithProfilesLikes(postId);
     } catch (_) {
       toast({ title: "Error", description: "Failed to update like", variant: "destructive" });
     }

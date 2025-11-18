@@ -13,6 +13,8 @@ import IdentifyPlant from "@/pages/IdentifyPlant";
 import DiagnoseDisease from "@/pages/DiagnoseDisease";
 import Forum from "@/pages/Forum";
 import Weather from "@/pages/Weather";
+import TermsOfService from "@/pages/TermsOfService";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import NotFound from "@/pages/NotFound";
 import "./index.css";
 
@@ -37,6 +39,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/diagnose-disease" element={<DiagnoseDisease />} />
             <Route path="/forum" element={<Forum />} />
             <Route path="/weather" element={<Weather />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </HashRouter>

@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Moon, Sun, Bell, MapPin, Palette, FileText, Monitor } from "lucide-react";
+import { ArrowLeft, Moon, Sun, MapPin, Palette, FileText, Monitor } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +20,6 @@ const Settings = () => {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
-  const [pushNotifications, setPushNotifications] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -47,15 +45,6 @@ const Settings = () => {
     }
   };
 
-  const handlePushNotificationToggle = (checked: boolean) => {
-    setPushNotifications(checked);
-    toast({
-      title: checked ? "Notifications Enabled" : "Notifications Disabled",
-      description: checked 
-        ? "You'll receive push notifications for important updates" 
-        : "Push notifications have been turned off",
-    });
-  };
 
   const handleLocationToggle = async (checked: boolean) => {
     if (!checked) {
@@ -185,34 +174,6 @@ const Settings = () => {
             <p className="text-muted-foreground mt-2">Manage your app preferences and privacy</p>
           </div>
 
-          {/* Notifications Section */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Bell className="h-5 w-5 text-primary" />
-                <CardTitle>Notifications</CardTitle>
-              </div>
-              <CardDescription>Configure your notification preferences</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="push-notifications" className="text-base">
-                    Push Notifications
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Receive alerts for weather updates and disease warnings
-                  </p>
-                </div>
-                <Switch
-                  id="push-notifications"
-                  checked={pushNotifications}
-                  onCheckedChange={handlePushNotificationToggle}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Location Section */}
           <Card>
             <CardHeader>
@@ -316,29 +277,21 @@ const Settings = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <a href="#" onClick={(e) => {
-                    e.preventDefault();
-                    toast({
-                      title: "Privacy Policy",
-                      description: "Privacy policy details will be displayed here",
-                    });
-                  }}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Privacy Policy
-                  </a>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => navigate("/privacy-policy")}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Privacy Policy
                 </Button>
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <a href="#" onClick={(e) => {
-                    e.preventDefault();
-                    toast({
-                      title: "Terms of Service",
-                      description: "Terms of service will be displayed here",
-                    });
-                  }}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Terms of Service
-                  </a>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => navigate("/terms-of-service")}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Terms of Service
                 </Button>
               </div>
             </CardContent>

@@ -232,6 +232,13 @@ const Dashboard = () => {
    * @param userId - The user's UUID to fetch activities for
    */
   const fetchRecentActivity = async (userId: string) => {
+    if (!userId) {
+      console.warn("fetchRecentActivity called without userId");
+      setRecentActivity([]);
+      setLoadingActivity(false);
+      return;
+    }
+
     setLoadingActivity(true);
     try {
       // Fetch both plant identifications and disease diagnoses in parallel for faster loading
@@ -250,8 +257,17 @@ const Dashboard = () => {
           .limit(5)
       ]);
 
-      const plantsData = plantsResult.data || [];
-      const diseasesData = diseasesResult.data || [];
+      // Check for errors in results
+      if (plantsResult.error) {
+        console.error("Error fetching plants:", plantsResult.error);
+      }
+      if (diseasesResult.error) {
+        console.error("Error fetching diseases:", diseasesResult.error);
+      }
+
+      // Use data from results, defaulting to empty array if error or null
+      const plantsData = (plantsResult.error ? [] : (plantsResult.data || []));
+      const diseasesData = (diseasesResult.error ? [] : (diseasesResult.data || []));
 
       // Combine both types into a unified activity list
       // Map plant data to ActivityItem format
@@ -284,6 +300,8 @@ const Dashboard = () => {
       setRecentActivity(activities);
     } catch (error) {
       console.error("Error fetching recent activity:", error);
+      // Set empty array on error to show "no activity" message
+      setRecentActivity([]);
     } finally {
       setLoadingActivity(false);
     }

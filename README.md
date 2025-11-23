@@ -1,8 +1,8 @@
-# AgriSense - Smart Farming Companion
+AgriSense - Smart Farming Companion
 
 A modern web application for plant identification, disease detection, and farmer community support.
 
-## Features
+Features
 
 - 🌱 **AI Plant Identification** - Instantly identify any plant species using advanced AI technology
 - 🔬 **Disease Detection** - Diagnose plant diseases early and get treatment recommendations
@@ -10,7 +10,7 @@ A modern web application for plant identification, disease detection, and farmer
 - 🌤️ **Weather & Tips** - Get localized farming advice based on weather conditions
 - 📊 **Dashboard** - Track your farming activities and history
 
-## Tech Stack
+ Tech Stack
 
 - **Frontend**: React 18 + TypeScript + Vite
 - **UI**: Tailwind CSS + shadcn/ui components
@@ -19,15 +19,15 @@ A modern web application for plant identification, disease detection, and farmer
 - **State Management**: React Context API
 - **Forms**: React Hook Form + Zod validation
 
-## Getting Started
+ Getting Started
 
-### Prerequisites
+ Prerequisites
 
 - Node.js 18+ 
 - npm or yarn
 - A Supabase account ([sign up here](https://supabase.com))
 
-### Installation
+ Installation
 
 1. Clone the repository:
 ```bash
@@ -57,7 +57,7 @@ npm run dev
 
 6. Open your browser and navigate to `http://localhost:8080`
 
-## Project Structure
+Project Structure
 
 ```
 src/
@@ -84,7 +84,7 @@ src/
 └── index.css        # Global styles
 ```
 
-## Available Scripts
+ Available Scripts
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
@@ -92,7 +92,7 @@ src/
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
 
-## Authentication
+ Authentication
 
 The app uses Supabase Authentication with support for:
 - Email/Password authentication
@@ -100,7 +100,7 @@ The app uses Supabase Authentication with support for:
 - Session management
 - Protected routes
 
-## Database Schema
+ Database Schema
 
 The app uses the following Supabase tables:
 - `profiles` - User profile information
@@ -111,7 +111,7 @@ The app uses the following Supabase tables:
 
 See `SUPABASE_SETUP.md` for detailed schema and setup instructions.
 
-## Contributing
+ Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
@@ -119,16 +119,16 @@ See `SUPABASE_SETUP.md` for detailed schema and setup instructions.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## License
+ License
 
 This project is licensed under the MIT License.
 
-## Documentation
+ Documentation
 
 - [Supabase Setup Guide](./SUPABASE_SETUP.md) - Complete Supabase integration guide
 - [Integration Summary](./INTEGRATION_SUMMARY.md) - Summary of implemented features
 
-## Support
+ Support
 
 For issues and questions, please open an issue on GitHub.
 

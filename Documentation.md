@@ -1,29 +1,29 @@
-AGRISENSE: FARMER’S ASSISTANT
+                                                 AGRISENSE: FARMER’S ASSISTANT
 
 
 
 
-KUTO VICTOR
-
-
-
-
-
-
-A research project submitted to the School of Science, Engineering and Technology in partial fulfillment of the requirements for the award of Diploma in Information Technology, Kabarak University.
+                                                         KUTO VICTOR
 
 
 
 
 
 
+A research project submitted to the School of Science, Engineering and Technology in partial fulfillment of the requirements for the                                    award of Diploma in Information Technology, Kabarak University.
 
-NOVEMBER,2025
+
+
+
+
+
+
+                                                       NOVEMBER,2025
 
  
-COPYRIGHT
-©2025
-All rights reserved
+                                                        COPYRIGHT
+                                                          ©2025
+                                                  All rights reserved
 No part of this project may be reproduced, stored in any retrieval system or transmitted in any form or by any means, electronic, mechanical, photocopying, and recording without prior intention of the author or Kabarak University on that.
 
 Sign: _____________                                                          Date: ____________
@@ -44,7 +44,7 @@ Sign: _____________                                                          Dat
 
 
 
-DECLARATION AND APPROVAL
+                                                 DECLARATION AND APPROVAL
 I declare that this work without any reasonable doubt has never been presented before to the Faculty of Information Technology or any other institution. No part of this research document shall therefore be duplicated without prior consent.
 
 Sign: _______________                                                                              Date: ________________
@@ -65,7 +65,7 @@ Registration Number: DIT/N/0868/05/24
 
 
 
-RECOMMENDATION
+                                                   RECOMMENDATION
 This research project entitled Agrisense: Farmers Assistant written by Kuto Victor Kiprotich is presented to the School of Science, Engineering and Technology, Kabarak University. I have reviewed this project and recommend that it will be accepted in partial fulfillment of the requirements for the Diploma in Information Technology.
 
 Signature: ______________                                                              Date:________________
@@ -87,7 +87,7 @@ Kabarak University
 
 
 
-ACKNOWLEDGMENT
+                                                     ACKNOWLEDGMENT
 I sincerely thank the Almighty God for strength and guidance throughout this project. My heartfelt appreciation goes to my supervisor for their valuable support, advice and encouragement during the period of this work. I also extend my gratitude to my lecturers, classmates and family for their continuous assistance, support and motivation which greatly contributed to the completion of this project.
 
 
@@ -108,7 +108,7 @@ I sincerely thank the Almighty God for strength and guidance throughout this pro
 
 
 
-DEDICATION
+                                                           DEDICATION
 This project is dedicated to my loving family for their strong support, encouragement and prayers. I also dedicate it to my friends and lecturers who have continuously inspired me to work hard towards my goal in my life.
 
 
@@ -131,7 +131,7 @@ This project is dedicated to my loving family for their strong support, encourag
 
 
 
-ABSTRACT
+                                                    ABSTRACT
 Agrisense is an intelligent, AI- powered agricultural platform designed for plant identification, disease diagnosis, weather-based farming insights and community knowledge sharing. Its goal is to empower farmers with accessible, data-driven tools for modern agriculture, reduce reliance on manual process, improve productivity and contribute to sustainable farming.
 Keywords: Agrisense, AI, Farm analytics
 
@@ -275,8 +275,8 @@ Table 2:Testing and Outcomes	27
 
 
  
-CHAPTER ONE
-INTRODUCTION
+                                                              CHAPTER ONE
+                                                              INTRODUCTION
 1.1 Background
 Agriculture remains the cornerstone of livelihood, employment, and economic development worldwide, particularly in developing regions such as Kenya and East Africa, where the sector employs over 26% of the global labour force according to the Food and Agriculture Organization (FAO). It plays a critical role in food security and poverty reduction by sustaining small-scale farmers who dominate these agrarian economies. The transformative wave of precision agriculture has revolutionized farming practices by optimizing crop yields, enhancing plant health monitoring, conserving crucial resources like water and fertilizers, and providing real-time access to market and environmental data. The World Bank (2021) highlights that digital agriculture interventions can boost productivity by up to 70% while cutting input costs by 25%, underscoring the sector's potential for efficient yield improvement.
 Central to farming success are accurate plant identification and timely disease diagnosis, historically constrained by reliance on manual observation and limited expert services accessible mainly in centralized locations. Crop diseases cause significant global losses estimated at 20-40%, disproportionately impacting smallholder farmers who face challenges accessing diagnostic services. Advances in computer vision and related technologies now enable plant species and disease identification with accuracy rates exceeding 95%, empowering farmers to intervene early and protect their harvests effectively. Moreover, integrating localized weather and climate data supports critical farm management decisions such as planting schedules, irrigation, pest control, and harvesting timing. These technologies not only enhance farm productivity but also promote sustainable agricultural practices by anticipating environmental risks. Complementing these technological tools are modern digital platforms that enable wider knowledge sharing across farming communities, transcending traditional word-of-mouth methods and fostering collaboration, learning, and adoption of best practices at scale. Together, these advancements position agriculture to meet the increasing demands of food production while improving livelihoods and building resilient farming systems.
@@ -313,8 +313,8 @@ iv.	Plant identification and disease diagnostic AI models are adequately trained
 
 
 
-CHAPTER TWO
- LITERATURE REVIEW
+                                                        CHAPTER TWO
+                                                      LITERATURE REVIEW
 2.0 Introduction
 This chapter thoroughly examines landmark studies, advanced tools, and evolving methodologies pertaining to agricultural management systems. Special emphasis is placed on technological advancements in plant identification, disease diagnosis, weather integration, and comprehensive farm data management. It delves into a spectrum of current solutions available in the agricultural sector—from basic record-keeping tools and mobile applications to sophisticated web-based platforms and academic research systems—highlighting the unique features, strengths, and limitations of each.
 The review critically assesses the extent to which these approaches address the diverse needs of different types of farmers, especially smallholders in developing regions. It explores issues such as system accessibility, user experience, scalability, adaptability to regional crops, operational costs, and the inclusion (or lack) of features for holistic farm management.
@@ -341,8 +341,8 @@ The challenges in implementing the current agricultural technology solutions inc
 2.6ConceptualFramework
  
 Figure 1:Conceptual framework
-CHAPTER THREE
-RESEARCH METHODOLOGY
+                                                               CHAPTER THREE
+                                                           RESEARCH METHODOLOGY
 3.0 Introduction
 This chapter describes the methodology employed in designing and developing AgriSense. It describes the research approach, system development methodology, functional and non-functional requirements, tools and technologies applied, and data collection procedures. A systematic methodology ensures that the system adequately responds to identified problems and meets user requirements thoroughly.
 3.1 System Development Methodology
@@ -421,8 +421,8 @@ Figure 4:DFD Diagram
 
 
 
-CHAPTER FOUR:
-SYSTEM ANALYSIS, DESIGN, AND IMPLEMENTATION
+                                                         CHAPTER FOUR:
+                                          SYSTEM ANALYSIS, DESIGN, AND IMPLEMENTATION
 4.0 Introduction
 The chapter describes the detailed system analysis, architectural design, and implementation plan for Agrisense. It comprises database design, user interface definitions, system components, implementation information, and integration protocols. The design is centered on user friendliness, scalability, security, and accessibility and incorporates specific agricultural users' requirements.
 4.1 System Architecture
@@ -542,8 +542,8 @@ Weather Data Fetch	Checks if weather is measured accurately	Location-based, accu
 
 
 
-CHAPTER FIVE
-CONCLUSION AND RECOMMENDATIONS
+                                                   CHAPTER FIVE
+                                         CONCLUSION AND RECOMMENDATIONS
 5.0 Introduction
 The chapter summarizes the results of the AgriSense project, outlines main conclusions, actionable recommendations, and possible future improvements.
 5.1 Conclusion
@@ -572,5 +572,5 @@ World Bank. (2021). Digital agriculture: The future of farming.
 
 
 
-APPENDIX
+                                              APPENDIX
 Project link: https://hrbnger.github.io/Agrisense-2.0
